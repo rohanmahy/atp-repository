@@ -9,7 +9,7 @@ number:
 updates:
 date:
 consensus:
-v: 0
+v: 3
 area: "Applications and Real-Time Area"
 workgroup: "Authenticated Transfer"
 keyword:
