@@ -6,18 +6,21 @@ category: std
 docname: draft-ietf-atp-repository-latest
 submissiontype: IETF
 number:
-updates:
 date:
-consensus:
+consensus: true
 v: 3
 area: "Applications and Real-Time Area"
 workgroup: "Authenticated Transfer"
 keyword:
+ - atproto
+ - AT Protocol
 venue:
   group: "Authenticated Transfer"
   type: "Working Group"
   mail: "atp@ietf.org"
+  arch: "https://mailarchive.ietf.org/arch/browse/atp/"
   github: "ietf-wg-atp/atp-repository"
+  latest: "https://ietf-wg-atp.github.io/atp-repository/draft-ietf-atp-repository.html"
 
 author:
  -
@@ -230,7 +233,7 @@ For the sake of illustration, assume the following layer calculations:
 - `layer(A|E|I) = 1`
 - `layer(B|C|F|G|H) = 0`
 
-~~~aasvg
+~~~ aasvg
          *
          |
    -------------
