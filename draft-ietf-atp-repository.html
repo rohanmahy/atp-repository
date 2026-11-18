@@ -1,0 +1,2843 @@
+<!DOCTYPE html>
+<html lang="en" class="Internet-Draft">
+<head>
+<meta charset="utf-8">
+<meta content="Common,Latin" name="scripts">
+<meta content="initial-scale=1.0" name="viewport">
+<title>Authenticated Transfer: Repository and Synchronization</title>
+<meta content="Daniel Holmgren" name="author">
+<meta content="Bryan Newbold" name="author">
+<meta content="
+       This document specifies a repository data structure and synchronization mechanisms for public data as part of the Authenticated Transfer Protocol (ATP). It describes encoding formats for both individual data records and entire repositories. The repository data structure is content-addressable and cryptographically authenticated. For synchronization, it specifies both a low-latency streaming protocol over WebSocket, and a full-repository fetch mechanism over HTTP. 
+    " name="description">
+<meta content="xml2rfc 3.35.0" name="generator">
+<meta content="atproto" name="keyword">
+<meta content="AT Protocol" name="keyword">
+<meta content="draft-ietf-atp-repository-latest" name="ietf.draft">
+<!-- Generator version information:
+  xml2rfc 3.35.0
+    Python 3.14.10
+    ConfigArgParse 1.10.1
+    google-i18n-address 3.1.1
+    intervaltree 3.2.1
+    Jinja2 3.1.6
+    lxml 6.1.1
+    natsort 8.4.0
+    platformdirs 4.14.7
+    pycountry 24.6.1
+    PyYAML 6.0.3
+    requests 2.33.1
+    wcwidth 0.9.4
+-->
+<link href="draft-ietf-atp-repository.xml" rel="alternate" type="application/rfc+xml">
+<link href="#copyright" rel="license">
+<style type="text/css">@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-cyrillic.woff2') format('woff2');
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-cyrillic.woff2') format('woff2');
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: local('Lora SemiBold'), local('Lora-SemiBold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-semibold-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Oxygen Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Oxygen Mono'), local('OxygenMono-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/oxygenmono-regular-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Oxygen Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Oxygen Mono'), local('OxygenMono-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/oxygenmono-regular-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  color-scheme: light dark;
+  --background-color: #fff;
+  --text-color: #222;
+  --title-color: #191919;
+  --link-color: #2a6496;
+  --highlight-color: #f9f9f9;
+  --line-color: #eee;
+  --pilcrow-weak: #ddd;
+  --pilcrow-strong: #bbb;
+  --small-font-size: 14.5px;
+  --font-mono: 'Oxygen Mono', monospace;
+  --font-title: "Sofia Sans Semi Condensed", sans-serif;
+  scrollbar-color: #bbb #eee;
+}
+body {
+  max-width: 600px;
+  margin: 75px auto;
+  padding: 0 5px;
+  color: var(--text-color);
+  background-color: var(--background-color);
+  font: 16px/22px "Lora", serif;
+  scroll-behavior: smooth;
+}
+
+.ears {
+  display: none;
+}
+
+/* headings */
+section {
+  clear: both;
+}
+.section-number {
+  padding-right: 0.5em;
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-title);
+  font-weight: 680;
+  margin: 0.8em 0 0.3em;
+  font-size-adjust: 0.5;
+  color: var(--title-color);
+}
+h1 {
+  &#title {
+    font-size: 32px;
+    line-height: 40px;
+    clear: both;
+    margin: 1.5em 0 0.2em;
+  }
+  &#rfcnum {
+    margin: 1.5em 0 0.2em;
+    & + h1#title {
+      margin: 0.2em 0;
+    }
+  }
+}
+
+h1, h2, h3 {
+  font-size: 22px;
+  line-height: 27px;
+}
+h4, h5, h6 {
+  font-size: 20px;
+  line-height: 24px;
+}
+
+/* general structure */
+.author {
+  padding-bottom: 0.3em;
+  vertical-align: top;
+}
+#abstract+p {
+  font-size: 18px;
+  line-height: 24px;
+  & code, & samp, & tt {
+    font-size: 16px;
+    line-height: 0;
+  }
+}
+
+p {
+  padding: 0;
+  margin: 0.5em 0;
+  text-align: left;
+}
+div {
+  margin: 0;
+}
+.alignRight {
+  margin: 1em 0;
+  &.art-text {
+    background-color: var(--highlight-color);
+    border: 1px solid var(--line-color);
+    border-radius: 3px;
+    padding: 0.5em 1em 0;
+    margin-bottom: 0.5em;
+    & pre {
+      padding: 0;
+      width: auto;
+    }
+  }
+  & > *:first-child {
+    border: none;
+    margin: 0;
+    float: right;
+    clear: both;
+  }
+  & > *:nth-child(2) {
+    clear: both;
+    display: block;
+    border: none;
+  }
+}
+svg {
+  display: block;
+  /* font-family isn't space-separated, but =~ will have to do */
+  &[font-family~="monospace" i], & [font-family~="monospace" i] {
+    font-family: var(--font-mono);
+  }
+}
+.alignCenter {
+  margin: 1em 0;
+  &.art-text {
+    background-color: var(--highlight-color);
+    border: 1px solid var(--line-color);
+    border-radius: 3px;
+    padding: 0.5em 1em 0;
+    margin-bottom: 0.5em;
+    & pre {
+      padding: 0;
+      width: auto;
+    }
+  }
+  & > *:first-child {
+    border: none;
+    /* this isn't optimal, but it's an existence proof.  PrinceXML doesn't
+       support flexbox yet.
+    */
+    display: table;
+    margin: 0 auto;
+  }
+}
+
+/* lists */
+ol, ul {
+  padding: 0;
+  margin: 0 0 0.5em 2em;
+  & :is(ol, ul) {
+    margin-left: 1em;
+  }
+}
+li {
+  margin: 0 0 0.25em 0;
+}
+ul.empty, .ulEmpty {
+  list-style-type: none;
+  & li {
+    margin-top: 0.5em;
+  }
+}
+:is(ul, ol).compact, .ulCompact, .olCompact {
+  margin: 0 0 0 2em;
+  & li {
+    margin: 0;
+    & :first-child { margin-top: 0; }
+    & :last-child { margin-bottom: 0; }
+  }
+}
+
+/* definition lists */
+dl {
+  clear: left;
+  --indent: 3ch;
+  /* --indent: attr(indent ch); not supported in any browser, but we can dream */
+  &.olPercent {
+    --indent: 5ch;
+    & > dt {
+      min-width: calc(var(--indent) - 2ch);
+      float: none;
+    }
+  }
+
+  dl > dd > & {
+    margin-top: 0.5em;
+    margin-bottom: 0;
+  }
+
+  &:not(.dlNewline) > dt {
+    float: left;
+    margin-right: 2ch;
+    min-width: 8ch;
+  }
+  & > dd {
+    margin-bottom: .8em;
+    margin-left: var(--indent) !important; /* stupid element overrides */
+    min-height: 2ex;
+  }
+}
+:is(dl.compact, .dlCompact) > dd {
+  margin-bottom: 0;
+  & > :is(:first-child, .break:first-child + *) {
+    margin-top: 0;
+  }
+  & > :is(:last-child) {
+    margin-bottom: 0;
+  }
+}
+:is(dd, span).break {
+  display: none;
+}
+
+/* links */
+a {
+  text-decoration: none;
+  &[href] {
+    color: var(--link-color);
+    &:hover { text-decoration: underline; }
+    &.selfRef {
+      color: var(--text-color);
+      &:hover {
+        text-decoration: none;
+        background-color: var(--highlight-color);
+      }
+    }
+  }
+}
+.iref + a[href].internal {
+  color: var(--text-color);
+}
+a.xref:is(.cite, .auto), :is(#status-of-memo, #copyright) a {
+  white-space: nowrap;
+}
+
+/* Figures */
+tt, code, pre {
+  background-color: var(--highlight-color);
+  font: 14px/22px var(--font-mono);
+}
+tt, code {
+  /* changing the font for inline elements leads to different ascender
+     and descender heights; as we want to retain baseline alignment,
+     remove leading to avoid altering the final height of lines
+     note: this fails if these blocks take an entire line,
+     a different solution would be great */
+  line-height: 0;
+}
+:is(h1, h2, h3, h4, h5, h6) :is(tt, code) {
+  font-size: 84%;
+}
+pre {
+  border: 1px solid var(--line-color);
+  font-size: 13.5px;
+  line-height: 16px;
+  letter-spacing: -0.2px;
+  margin: 5px;
+  padding: 5px;
+}
+img {
+  max-width: 100%;
+}
+figure {
+  margin: 0.5em 0;
+  padding: 0;
+  & blockquote {
+    margin: 0.8em 0.4em 0.4em;
+  }
+}
+figcaption, caption {
+  font-style: italic;
+  margin: 0.5em 1.5em;
+  text-align: left;
+  caption-side: bottom;
+}
+@media screen {
+  /* Auto-collapse boilerplate. */
+  :is(#status-of-memo, #copyright) {
+    & p {
+      margin: -2px 0;
+      max-height: 0;
+      transition: max-height 2s ease, margin 0.5s ease 0.5s;
+      overflow: hidden;
+    }
+    &:hover p,
+    & h2:target ~ p {
+      margin: 0.5em 0;
+      max-height: 500px;
+      overflow: auto;
+    }
+  }
+  pre, svg {
+    display: inline-block;
+    /* In the horizontal direction, sometimes people make over-sized figures.
+       Scrollbars for those is therefore necessary: auto adds them as necessary..
+       In the vertical direction, the line-height can combine with the font
+       asender/descender height to produce scrollbars: hidden avoids that. */
+    overflow: auto hidden;
+  }
+  pre {
+    max-width: 100%;
+    width: calc(100% - 22px - 1em);
+  }
+  svg {
+    max-width: calc(100% - 22px - 1em);
+  }
+  figure pre {
+    display: block;
+    width: calc(100% - 25px);
+  }
+  :is(pre, svg) + .pilcrow {
+    display: inline-block;
+    vertical-align: text-bottom;
+    padding-bottom: 8px;
+  }
+}
+
+/* aside, blockquote */
+aside, blockquote {
+  margin-left: 0;
+  padding: 0 2em;
+  font-style: italic;
+}
+blockquote {
+  margin: 1em 0;
+  border-left: 2px var(--pilcrow-strong) solid;
+}
+cite {
+  display: block;
+  text-align: right;
+  font-style: italic;
+}
+
+/* tables */
+table {
+  width: auto;
+  max-width: 100%;
+  margin: 0 0 1em;
+  border-collapse: collapse;
+  &.right { margin-left: auto; }
+  &.center { margin-left: auto; margin-right: auto; }
+  &.left { margin-right: auto; }
+  & .text-left { text-align: left; }
+  & .text-center { text-align: center; }
+  & .text-right { text-align: right; }
+  & caption {
+    margin: 0;
+    padding: 3px 0 3px 1em;
+  }
+  & p { margin: 0; }
+}
+
+thead, tbody {
+  border: 1px solid var(--line-color);
+}
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 5px 10px;
+}
+th {
+  background-color: var(--line-color);
+}
+:is(tr:nth-child(2n), thead+tbody > tr:nth-child(2n+1)) > td {
+  background-color: var(--background-color);
+}
+:is(tr:nth-child(2n+1), thead+tbody > tr:nth-child(2n)) > td {
+  background-color: var(--highlight-color);
+}
+
+/* pilcrow */
+a.pilcrow {
+  margin-left: 3px;
+  opacity: 0.2;
+  user-select: none;
+  &[href] {
+    color: var(--pilcrow-weak);
+    &:hover { text-decoration: none; }
+  }
+  @media not print {
+    :hover > &, &:focus {
+      opacity: 1;
+    }
+    &[href]:hover {
+      color: var(--pilcrow-strong);
+      background-color: transparent;
+    }
+  }
+  @media print {
+    display: none;
+  }
+}
+
+/* misc */
+hr {
+  border: 0;
+  border-top: 1px solid var(--line-color);
+}
+.bcp14 {
+  font-variant: small-caps;
+  font-weight: 600;
+  font-size: var(--small-font-size);
+}
+.role {
+  font-variant: all-small-caps;
+}
+sub, sup {
+  line-height: 1;
+  font-size: 80%;
+}
+
+/* info block */
+#identifiers {
+  margin: 0;
+  font-size: var(--small-font-size);
+  line-height: 18px;
+  --identifier-width: 15ch;
+  & dt {
+    width: var(--identifier-width);
+    min-width: var(--identifier-width);
+    clear: left;
+    float: left;
+    text-align: right;
+    margin-right: 1ch;
+  }
+  & dd {
+    margin: 0;
+    margin-left: calc(1em + var(--identifier-width)) !important;
+    min-width: 5em;
+  }
+  & .authors {
+    & .author {
+      display: inline-block;
+      margin-right: 1.5em;
+    }
+    & .org {
+      font-style: italic;
+    }
+  }
+}
+
+/* The prepared/rendered info at the very bottom of the page */
+.docInfo {
+  color: #999;
+  font-size: 0.9em;
+  font-style: italic;
+  margin-top: 2em;
+  & .prepared {
+    float: right;
+  }
+}
+
+/* table of contents */
+#toc {
+  padding: 0.75em 0 2em 0;
+  margin-bottom: 1em;
+
+  & nav {
+    & ul {
+      margin: 0 0.5em 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    & li {
+      line-height: 1.3em;
+      margin: 2px 0;
+      padding-left: 1.2em;
+      text-indent: -1.2em;
+    }
+  }
+  & a.xref {
+    white-space: normal;
+  }
+}
+
+.references {
+  & > dt {
+    text-align: right;
+    font-weight: bold;
+    min-width: 10ch;
+    margin-right: 1.5ch;
+    &:target::before {
+      content: "⇒";
+      margin: 0 10px 0 -25px;
+    }
+  }
+  & > dd {
+    margin-left: 12ch !important;
+    overflow: visible;
+    & .refInstance {
+      margin-bottom: 0.8em;
+    }
+    & .ascii {
+      margin-bottom: 0.25em;
+    }
+  }
+}
+
+#rfc\.index\.index + ul {
+  margin-left: 0;
+}
+
+/* authors */
+address.vcard {
+  font-style: normal;
+  max-width: 20em;
+  margin: 1em auto 1em 0;
+
+  & .nameRole {
+    font-weight: 700;
+    margin-left: 0;
+  }
+  & .label {
+    margin: 0.5em 0;
+  }
+  & .type {
+    display: none;
+  }
+  & .alternative-contact {
+    margin: 0.5em 0 0.25em 0;
+  }
+  & .non-ascii {
+    margin: 0 0 0 2em;
+  }
+  & div.left {
+    text-align: left;
+  }
+  & div.right {
+    text-align: right;
+  }
+}
+
+hr.addr {
+  border-top: 1px dashed;
+  margin: 0;
+  color: #ddd;
+  max-width: calc(100% - 16px);
+}
+@media (min-width: 500px) {
+  #authors-addresses {
+    & > section {
+      column-count: 2;
+      column-gap: 20px;
+    }
+    & > section > h2 {
+      column-span: all;
+    }
+    /* hack for break-inside: avoid-column */
+    & address {
+      display: inline-block;
+      break-inside: avoid-column;
+    }
+  }
+}
+
+/* Comments */
+.rfcEditorRemove {
+  & p:first-of-type {
+    font-style: italic;
+  }
+}
+.cref {
+  background-color: rgba(249, 232, 105, 0.3);
+  padding: 2px 4px;
+}
+.crefSource {
+  font-style: italic;
+}
+
+@media screen {
+  #toc {
+    & nav {
+      font-family: var(--font-title);
+      font-weight: 360;
+      & > ul { margin-bottom: 2em; }
+      & ul {
+        margin: 0 0 0 4px;
+        & :is(p, li) {
+          margin: 2px 0;
+        }
+      }
+    }
+    & a.toplink {
+      float: right;
+    }
+  }
+}
+@media not screen {
+  #toc a.toplink {
+    display: none;
+  }
+}
+
+
+/* TOC layout for smaller screens */
+@media screen and (max-width: 929px) {
+  #toc {
+    position: fixed;
+    z-index: 2;
+    top: 0;
+    right: 0;
+    padding: 1px 0 0 0;
+    margin: 0;
+    border-bottom: 1px solid #ccc;
+    opacity: 0.6;
+    & h2 {
+      margin: 0;
+      padding: 2px 0 2px 6px;
+      padding-right: 1em;
+      font-size: 18px;
+      line-height: 24px;
+      min-width: 190px;
+      text-align: right;
+      background-color: #444;
+      color: white;
+      cursor: pointer;
+      &::before { /* css hamburger */
+        float: right;
+        position: relative;
+        width: 1em;
+        height: 1px;
+        left: -164px;
+        margin: 8px 0 0 0;
+        background: white none repeat scroll 0 0;
+        box-shadow: 0 4px 0 0 white, 0 8px 0 0 white;
+        content: "";
+      }
+    }
+    & nav {
+      display: none;
+      background-color: var(--background-color);
+      padding: 0.5em 1em 1em;
+      overflow: auto;
+      overscroll-behavior: contain;
+      height: calc(100vh - 48px);
+      border-left: 1px solid #ddd;
+    }
+    &.active {
+      opacity: 1;
+      & nav { display: block; }
+    }
+    /* Make the collapsed ToC header render white on gray also when it's a link */
+    & h2 a,
+    & h2 a:is(:link, :focus, :hover),
+    & a.toplink,
+    & a.toplink:hover {
+      color: white;
+      background-color: #444;
+      text-decoration: none;
+    }
+    & a.toplink {
+      margin: 2px 0.5em 0;
+    }
+  }
+}
+
+/* TOC layout for wide screens */
+@media screen and (min-width: 930px) {
+  body {
+    padding-right: 360px;
+    padding-right: calc(min(180px + 20%, 500px));
+  }
+  #toc {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    right: calc(50vw - 480px);
+    width: 312px;
+    margin: 0;
+    padding: 0;
+    z-index: 1;
+    & h2 {
+      margin: 0;
+      padding: 0.25em 1em 1em 0;
+    }
+    & nav {
+      display: block;
+      height: calc(90vh - 84px);
+      bottom: 0;
+      padding: 0.5em 0 2em;
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+    & a.toplink {
+      margin: 8px 0.5em 0;
+    }
+  }
+  img { /* future proofing */
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* pagination */
+@media print {
+  body {
+    width: 100%;
+  }
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+  #n-copyright-notice {
+    border-bottom: none;
+  }
+  #toc {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+  }
+  #n-introduction {
+    page-break-before: always;
+  }
+  figure, pre, .vcard {
+    page-break-inside: avoid;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+  :is(h2, h3, h4, h5, h6)+*, dd {
+    page-break-before: avoid;
+  }
+  pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 10pt;
+  }
+  table {
+    border: 1px solid #ddd;
+  }
+  td {
+    border-top: 1px solid #ddd;
+  }
+}
+
+@page :first {
+  padding-top: 0;
+  @top-left {
+    content: normal;
+    border: none;
+  }
+  @top-center {
+    content: normal;
+    border: none;
+  }
+  @top-right {
+    content: normal;
+    border: none;
+  }
+}
+
+@page {
+  size: A4;
+  margin-bottom: 45mm;
+  padding-top: 20px;
+}
+
+/* Dark mode. */
+@media (prefers-color-scheme: dark) {
+:root {
+  --background-color: #121212;
+  --text-color: #f0f0f0;
+  --title-color: #fff;
+  --link-color: #4da4f0;
+  --highlight-color: #282828;
+  --line-color: #444;
+  --pilcrow-weak: #444;
+  --pilcrow-strong: #666;
+  scrollbar-color: #777 #333;
+}
+}
+
+/* SVG Trick: a prefix match works because only black and white are allowed */
+svg {
+  & :is([stroke="black"], [stroke^="#000"]) {
+    stroke: var(--text-color);
+  }
+  & :is([stroke="white"], [stroke^="#fff"]) {
+    stroke: var(--background-color);
+  }
+  & :is([fill="black"], [fill^="#000"], :not([fill], [fill] *)) {
+    fill: var(--text-color);
+  }
+  & :is([fill="white"], [fill^="#fff"]) {
+    fill: var(--background-color);
+  }
+}
+</style>
+
+</head>
+<body class="xml2rfc">
+<table class="ears">
+<thead><tr>
+<td class="left">Internet-Draft</td>
+<td class="center">AT Repo</td>
+<td class="right">November 2026</td>
+</tr></thead>
+<tfoot><tr>
+<td class="left">Holmgren &amp; Newbold</td>
+<td class="center">Expires 22 May 2027</td>
+<td class="right">[Page]</td>
+</tr></tfoot>
+</table>
+<div id="external-metadata" class="document-information"></div>
+<div id="internal-metadata" class="document-information">
+<dl id="identifiers">
+<dt class="label-workgroup">Workgroup:</dt>
+<dd class="workgroup">Authenticated Transfer</dd>
+<dt class="label-internet-draft">Internet-Draft:</dt>
+<dd class="internet-draft">draft-ietf-atp-repository-latest</dd>
+<dt class="label-published">Published:</dt>
+<dd class="published">
+<time datetime="2026-11-18" class="published">18 November 2026</time>
+    </dd>
+<dt class="label-intended-status">Intended Status:</dt>
+<dd class="intended-status">Standards Track</dd>
+<dt class="label-expires">Expires:</dt>
+<dd class="expires"><time datetime="2027-05-22">22 May 2027</time></dd>
+<dt class="label-authors">Authors:</dt>
+<dd class="authors">
+<div class="author">
+      <div class="author-name">D. Holmgren</div>
+<div class="org">Bluesky Social</div>
+</div>
+<div class="author">
+      <div class="author-name">B. Newbold</div>
+<div class="org">Bluesky Social</div>
+</div>
+</dd>
+</dl>
+</div>
+<h1 id="title">Authenticated Transfer: Repository and Synchronization</h1>
+<section id="section-abstract">
+      <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
+<p id="section-abstract-1">This document specifies a repository data structure and synchronization mechanisms for public data as part of the Authenticated Transfer Protocol (ATP). It describes encoding formats for both individual data records and entire repositories. The repository data structure is content-addressable and cryptographically authenticated. For synchronization, it specifies both a low-latency streaming protocol over WebSocket, and a full-repository fetch mechanism over HTTP.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+</section>
+<section class="note rfcEditorRemove" id="section-note.1">
+      <h2 id="name-about-this-document">
+<a href="#name-about-this-document" class="section-name selfRef">About This Document</a>
+      </h2>
+<p id="section-note.1-1">This note is to be removed before publishing as an RFC.<a href="#section-note.1-1" class="pilcrow">¶</a></p>
+<p id="section-note.1-2">
+        The latest revision of this draft can be found at <span><a href="https://ietf-wg-atp.github.io/atp-repository/draft-ietf-atp-repository.html">https://ietf-wg-atp.github.io/atp-repository/draft-ietf-atp-repository.html</a></span>.
+        Status information for this document may be found at <span><a href="https://datatracker.ietf.org/doc/draft-ietf-atp-repository/">https://datatracker.ietf.org/doc/draft-ietf-atp-repository/</a></span>.<a href="#section-note.1-2" class="pilcrow">¶</a></p>
+<p id="section-note.1-3">
+        Discussion of this document takes place on the
+        Authenticated Transfer Working Group mailing list (<span><a href="mailto:atp@ietf.org">mailto:atp@ietf.org</a></span>),
+        which is archived at <span><a href="https://mailarchive.ietf.org/arch/browse/atp/">https://mailarchive.ietf.org/arch/browse/atp/</a></span>.
+        Subscribe at <span><a href="https://www.ietf.org/mailman/listinfo/atp/">https://www.ietf.org/mailman/listinfo/atp/</a></span>.<a href="#section-note.1-3" class="pilcrow">¶</a></p>
+<p id="section-note.1-4">Source for this draft and an issue tracker can be found at
+        <span><a href="https://github.com/ietf-wg-atp/atp-repository">https://github.com/ietf-wg-atp/atp-repository</a></span>.<a href="#section-note.1-4" class="pilcrow">¶</a></p>
+</section>
+<div id="status-of-memo">
+<section id="section-boilerplate.1">
+        <h2 id="name-status-of-this-memo">
+<a href="#name-status-of-this-memo" class="section-name selfRef">Status of This Memo</a>
+        </h2>
+<p id="section-boilerplate.1-1">
+        This Internet-Draft is submitted in full conformance with the
+        provisions of BCP 78 and BCP 79.<a href="#section-boilerplate.1-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-2">
+        Internet-Drafts are working documents of the Internet Engineering Task
+        Force (IETF). Note that other groups may also distribute working
+        documents as Internet-Drafts. The list of current Internet-Drafts is
+        at <span><a href="https://datatracker.ietf.org/drafts/current/">https://datatracker.ietf.org/drafts/current/</a></span>.<a href="#section-boilerplate.1-2" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-3">
+        Internet-Drafts are draft documents valid for a maximum of six months
+        and may be updated, replaced, or obsoleted by other documents at any
+        time. It is inappropriate to use Internet-Drafts as reference
+        material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-4">
+        This Internet-Draft will expire on 22 May 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="copyright">
+<section id="section-boilerplate.2">
+        <h2 id="name-copyright-notice">
+<a href="#name-copyright-notice" class="section-name selfRef">Copyright Notice</a>
+        </h2>
+<p id="section-boilerplate.2-1">
+            Copyright (c) 2026 IETF Trust and the persons identified as the
+            document authors. All rights reserved.<a href="#section-boilerplate.2-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.2-2">
+            This document is subject to BCP 78 and the IETF Trust's Legal
+            Provisions Relating to IETF Documents
+            (<span><a href="https://trustee.ietf.org/license-info">https://trustee.ietf.org/license-info</a></span>) in effect on the date of
+            publication of this document. Please review these documents
+            carefully, as they describe your rights and restrictions with
+            respect to this document. Code Components extracted from this
+            document must include Revised BSD License text as described in
+            Section 4.e of the Trust Legal Provisions and are provided without
+            warranty as described in the Revised BSD License.<a href="#section-boilerplate.2-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="toc">
+<section id="section-toc.1">
+        <a href="#" onclick="scroll(0,0)" class="toplink">▲</a><h2 id="name-table-of-contents">
+<a href="#name-table-of-contents" class="section-name selfRef">Table of Contents</a>
+        </h2>
+<nav class="toc"><ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1">
+            <p id="section-toc.1-1.1.1" class="keepWithNext"><a href="#section-1" class="auto internal xref">1</a>.  <a href="#name-introduction" class="internal xref">Introduction</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.2">
+            <p id="section-toc.1-1.2.1"><a href="#section-2" class="auto internal xref">2</a>.  <a href="#name-repository-semantics" class="internal xref">Repository Semantics</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.2.2.1">
+                <p id="section-toc.1-1.2.2.1.1" class="keepWithNext"><a href="#section-2.1" class="auto internal xref">2.1</a>.  <a href="#name-account-identifiers" class="internal xref">Account Identifiers</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.2.2.2">
+                <p id="section-toc.1-1.2.2.2.1" class="keepWithNext"><a href="#section-2.2" class="auto internal xref">2.2</a>.  <a href="#name-revisions" class="internal xref">Revisions</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3">
+            <p id="section-toc.1-1.3.1"><a href="#section-3" class="auto internal xref">3</a>.  <a href="#name-repository-structure" class="internal xref">Repository Structure</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.1">
+                <p id="section-toc.1-1.3.2.1.1"><a href="#section-3.1" class="auto internal xref">3.1</a>.  <a href="#name-record-paths" class="internal xref">Record Paths</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.2">
+                <p id="section-toc.1-1.3.2.2.1"><a href="#section-3.2" class="auto internal xref">3.2</a>.  <a href="#name-commit-objects" class="internal xref">Commit Objects</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.3">
+                <p id="section-toc.1-1.3.2.3.1"><a href="#section-3.3" class="auto internal xref">3.3</a>.  <a href="#name-records" class="internal xref">Records</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4">
+            <p id="section-toc.1-1.4.1"><a href="#section-4" class="auto internal xref">4</a>.  <a href="#name-merkle-search-tree" class="internal xref">Merkle Search Tree</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.1">
+                <p id="section-toc.1-1.4.2.1.1"><a href="#section-4.1" class="auto internal xref">4.1</a>.  <a href="#name-tree-structure" class="internal xref">Tree Structure</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.2">
+                <p id="section-toc.1-1.4.2.2.1"><a href="#section-4.2" class="auto internal xref">4.2</a>.  <a href="#name-layer-calculation" class="internal xref">Layer Calculation</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.3">
+                <p id="section-toc.1-1.4.2.3.1"><a href="#section-4.3" class="auto internal xref">4.3</a>.  <a href="#name-mst-construction-example" class="internal xref">MST Construction Example</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.4">
+                <p id="section-toc.1-1.4.2.4.1"><a href="#section-4.4" class="auto internal xref">4.4</a>.  <a href="#name-empty-nodes" class="internal xref">Empty Nodes</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.5">
+                <p id="section-toc.1-1.4.2.5.1"><a href="#section-4.5" class="auto internal xref">4.5</a>.  <a href="#name-mst-node-schema" class="internal xref">MST Node Schema</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.6">
+                <p id="section-toc.1-1.4.2.6.1"><a href="#section-4.6" class="auto internal xref">4.6</a>.  <a href="#name-mst-node-example" class="internal xref">MST Node Example</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5">
+            <p id="section-toc.1-1.5.1"><a href="#section-5" class="auto internal xref">5</a>.  <a href="#name-repository-serialization-fo" class="internal xref">Repository Serialization Format</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.1">
+                <p id="section-toc.1-1.5.2.1.1"><a href="#section-5.1" class="auto internal xref">5.1</a>.  <a href="#name-header-format" class="internal xref">Header Format</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.2">
+                <p id="section-toc.1-1.5.2.2.1"><a href="#section-5.2" class="auto internal xref">5.2</a>.  <a href="#name-block-format" class="internal xref">Block Format</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.3">
+                <p id="section-toc.1-1.5.2.3.1"><a href="#section-5.3" class="auto internal xref">5.3</a>.  <a href="#name-block-ordering" class="internal xref">Block Ordering</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6">
+            <p id="section-toc.1-1.6.1"><a href="#section-6" class="auto internal xref">6</a>.  <a href="#name-account-hosting" class="internal xref">Account Hosting</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6.2.1">
+                <p id="section-toc.1-1.6.2.1.1"><a href="#section-6.1" class="auto internal xref">6.1</a>.  <a href="#name-hosting-status" class="internal xref">Hosting Status</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6.2.2">
+                <p id="section-toc.1-1.6.2.2.1"><a href="#section-6.2" class="auto internal xref">6.2</a>.  <a href="#name-status-propagation" class="internal xref">Status Propagation</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7">
+            <p id="section-toc.1-1.7.1"><a href="#section-7" class="auto internal xref">7</a>.  <a href="#name-snapshot-sync" class="internal xref">Snapshot Sync</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8">
+            <p id="section-toc.1-1.8.1"><a href="#section-8" class="auto internal xref">8</a>.  <a href="#name-streaming-sync" class="internal xref">Streaming Sync</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.1">
+                <p id="section-toc.1-1.8.2.1.1"><a href="#section-8.1" class="auto internal xref">8.1</a>.  <a href="#name-repository-diffs" class="internal xref">Repository Diffs</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.1.2.1">
+                    <p id="section-toc.1-1.8.2.1.2.1.1"><a href="#section-8.1.1" class="auto internal xref">8.1.1</a>.  <a href="#name-diff-serialization-format" class="internal xref">Diff Serialization Format</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.1.2.2">
+                    <p id="section-toc.1-1.8.2.1.2.2.1"><a href="#section-8.1.2" class="auto internal xref">8.1.2</a>.  <a href="#name-operation-inversion" class="internal xref">Operation Inversion</a></p>
+</li>
+                </ul>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.2">
+                <p id="section-toc.1-1.8.2.2.1"><a href="#section-8.2" class="auto internal xref">8.2</a>.  <a href="#name-websocket-transport" class="internal xref">WebSocket Transport</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.2.2.1">
+                    <p id="section-toc.1-1.8.2.2.2.1.1"><a href="#section-8.2.1" class="auto internal xref">8.2.1</a>.  <a href="#name-frame-format" class="internal xref">Frame Format</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.2.2.2">
+                    <p id="section-toc.1-1.8.2.2.2.2.1"><a href="#section-8.2.2" class="auto internal xref">8.2.2</a>.  <a href="#name-error-frames" class="internal xref">Error Frames</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.2.2.3">
+                    <p id="section-toc.1-1.8.2.2.2.3.1"><a href="#section-8.2.3" class="auto internal xref">8.2.3</a>.  <a href="#name-pre-upgrade-http-errors" class="internal xref">Pre-Upgrade HTTP Errors</a></p>
+</li>
+                </ul>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.3">
+                <p id="section-toc.1-1.8.2.3.1"><a href="#section-8.3" class="auto internal xref">8.3</a>.  <a href="#name-cursors-and-resumption" class="internal xref">Cursors and Resumption</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4">
+                <p id="section-toc.1-1.8.2.4.1"><a href="#section-8.4" class="auto internal xref">8.4</a>.  <a href="#name-message-types" class="internal xref">Message Types</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4.2.1">
+                    <p id="section-toc.1-1.8.2.4.2.1.1"><a href="#section-8.4.1" class="auto internal xref">8.4.1</a>.  <a href="#name-common-message-fields" class="internal xref">Common Message Fields</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4.2.2">
+                    <p id="section-toc.1-1.8.2.4.2.2.1"><a href="#section-8.4.2" class="auto internal xref">8.4.2</a>.  <a href="#name-commit-message" class="internal xref"><code>#commit</code> Message</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4.2.3">
+                    <p id="section-toc.1-1.8.2.4.2.3.1"><a href="#section-8.4.3" class="auto internal xref">8.4.3</a>.  <a href="#name-sync-message" class="internal xref"><code>#sync</code> Message</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4.2.4">
+                    <p id="section-toc.1-1.8.2.4.2.4.1"><a href="#section-8.4.4" class="auto internal xref">8.4.4</a>.  <a href="#name-account-messages" class="internal xref"><code>#account</code> Messages</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4.2.5">
+                    <p id="section-toc.1-1.8.2.4.2.5.1"><a href="#section-8.4.5" class="auto internal xref">8.4.5</a>.  <a href="#name-identity-message" class="internal xref"><code>#identity</code> Message</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4.2.6">
+                    <p id="section-toc.1-1.8.2.4.2.6.1"><a href="#section-8.4.6" class="auto internal xref">8.4.6</a>.  <a href="#name-info-message" class="internal xref"><code>#info</code> Message</a></p>
+</li>
+                </ul>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.5">
+                <p id="section-toc.1-1.8.2.5.1"><a href="#section-8.5" class="auto internal xref">8.5</a>.  <a href="#name-commit-validation" class="internal xref">Commit Validation</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.6">
+                <p id="section-toc.1-1.8.2.6.1"><a href="#section-8.6" class="auto internal xref">8.6</a>.  <a href="#name-re-synchronization" class="internal xref">Re-synchronization</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9">
+            <p id="section-toc.1-1.9.1"><a href="#section-9" class="auto internal xref">9</a>.  <a href="#name-media-blobs" class="internal xref">Media Blobs</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.1">
+                <p id="section-toc.1-1.9.2.1.1"><a href="#section-9.1" class="auto internal xref">9.1</a>.  <a href="#name-blob-references" class="internal xref">Blob References</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.10">
+            <p id="section-toc.1-1.10.1"><a href="#section-10" class="auto internal xref">10</a>. <a href="#name-privacy-considerations" class="internal xref">Privacy Considerations</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.10.2.1">
+                <p id="section-toc.1-1.10.2.1.1"><a href="#section-10.1" class="auto internal xref">10.1</a>.  <a href="#name-deleted-data" class="internal xref">Deleted Data</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.10.2.2">
+                <p id="section-toc.1-1.10.2.2.1"><a href="#section-10.2" class="auto internal xref">10.2</a>.  <a href="#name-author-privacy" class="internal xref">Author Privacy</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11">
+            <p id="section-toc.1-1.11.1"><a href="#section-11" class="auto internal xref">11</a>. <a href="#name-security-considerations" class="internal xref">Security Considerations</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11.2.1">
+                <p id="section-toc.1-1.11.2.1.1"><a href="#section-11.1" class="auto internal xref">11.1</a>.  <a href="#name-untrusted-data" class="internal xref">Untrusted Data</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11.2.2">
+                <p id="section-toc.1-1.11.2.2.1"><a href="#section-11.2" class="auto internal xref">11.2</a>.  <a href="#name-untrusted-hosts" class="internal xref">Untrusted Hosts</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11.2.3">
+                <p id="section-toc.1-1.11.2.3.1"><a href="#section-11.3" class="auto internal xref">11.3</a>.  <a href="#name-mst-structure-attacks" class="internal xref">MST Structure Attacks</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11.2.4">
+                <p id="section-toc.1-1.11.2.4.1"><a href="#section-11.4" class="auto internal xref">11.4</a>.  <a href="#name-repository-import-validatio" class="internal xref">Repository Import Validation</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11.2.5">
+                <p id="section-toc.1-1.11.2.5.1"><a href="#section-11.5" class="auto internal xref">11.5</a>.  <a href="#name-resource-abuse" class="internal xref">Resource Abuse</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11.2.6">
+                <p id="section-toc.1-1.11.2.6.1"><a href="#section-11.6" class="auto internal xref">11.6</a>.  <a href="#name-repository-rewinds" class="internal xref">Repository Rewinds</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11.2.7">
+                <p id="section-toc.1-1.11.2.7.1"><a href="#section-11.7" class="auto internal xref">11.7</a>.  <a href="#name-validation-responsibility" class="internal xref">Validation Responsibility</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11.2.8">
+                <p id="section-toc.1-1.11.2.8.1"><a href="#section-11.8" class="auto internal xref">11.8</a>.  <a href="#name-blob-hosting" class="internal xref">Blob Hosting</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12">
+            <p id="section-toc.1-1.12.1"><a href="#section-12" class="auto internal xref">12</a>. <a href="#name-iana-considerations" class="internal xref">IANA Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13">
+            <p id="section-toc.1-1.13.1"><a href="#section-13" class="auto internal xref">13</a>. <a href="#name-references" class="internal xref">References</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13.2.1">
+                <p id="section-toc.1-1.13.2.1.1"><a href="#section-13.1" class="auto internal xref">13.1</a>.  <a href="#name-normative-references" class="internal xref">Normative References</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13.2.2">
+                <p id="section-toc.1-1.13.2.2.1"><a href="#section-13.2" class="auto internal xref">13.2</a>.  <a href="#name-informative-references" class="internal xref">Informative References</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14">
+            <p id="section-toc.1-1.14.1"><a href="#appendix-A" class="auto internal xref">Appendix A</a>.  <a href="#name-data-model" class="internal xref">Data Model</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14.2.1">
+                <p id="section-toc.1-1.14.2.1.1"><a href="#appendix-A.1" class="auto internal xref">A.1</a>.  <a href="#name-content-identifier-cid-hash" class="internal xref">Content Identifier (CID) Hashes</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14.2.2">
+                <p id="section-toc.1-1.14.2.2.1"><a href="#appendix-A.2" class="auto internal xref">A.2</a>.  <a href="#name-cbor-encoding" class="internal xref">CBOR Encoding</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14.2.3">
+                <p id="section-toc.1-1.14.2.3.1"><a href="#appendix-A.3" class="auto internal xref">A.3</a>.  <a href="#name-json-encoding" class="internal xref">JSON Encoding</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15">
+            <p id="section-toc.1-1.15.1"><a href="#appendix-B" class="auto internal xref">Appendix B</a>.  <a href="#name-cryptography" class="internal xref">Cryptography</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15.2.1">
+                <p id="section-toc.1-1.15.2.1.1"><a href="#appendix-B.1" class="auto internal xref">B.1</a>.  <a href="#name-signature-malleability" class="internal xref">Signature Malleability</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15.2.2">
+                <p id="section-toc.1-1.15.2.2.1"><a href="#appendix-B.2" class="auto internal xref">B.2</a>.  <a href="#name-signature-generation" class="internal xref">Signature Generation</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.16">
+            <p id="section-toc.1-1.16.1"><a href="#appendix-C" class="auto internal xref">Appendix C</a>.  <a href="#name-timestamp-identifier-tid" class="internal xref">Timestamp Identifier (TID)</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.17">
+            <p id="section-toc.1-1.17.1"><a href="#appendix-D" class="auto internal xref">Appendix D</a>.  <a href="#name-namespaced-identifier-nsid-" class="internal xref">Namespaced Identifier (NSID) Syntax</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.18">
+            <p id="section-toc.1-1.18.1"><a href="#appendix-E" class="auto internal xref"></a><a href="#name-acknowledgments" class="internal xref">Acknowledgments</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.19">
+            <p id="section-toc.1-1.19.1"><a href="#appendix-F" class="auto internal xref"></a><a href="#name-authors-addresses" class="internal xref">Authors' Addresses</a></p>
+</li>
+        </ul>
+</nav>
+</section>
+</div>
+<div id="intro">
+<section id="section-1">
+      <h2 id="name-introduction">
+<a href="#section-1" class="section-number selfRef">1. </a><a href="#name-introduction" class="section-name selfRef">Introduction</a>
+      </h2>
+<p id="section-1-1">The Authenticated Transfer Protocol (ATP) enables the creation of decentralized networks for publication of self-certifying data. An introduction to the overall protocol architecture is given in <span>[<a href="#AT-ARCH" class="cite xref">AT-ARCH</a>]</span>.<a href="#section-1-1" class="pilcrow">¶</a></p>
+<p id="section-1-2">User accounts publish structured data records to the network by including them in their public repository. Records within a repository are identified by a unique path and current content version (hash). Records can be created, updated, and deleted at any time. Repositories contain the complete set of current records for the account, and do not include or reveal the existence of previous content.<a href="#section-1-2" class="pilcrow">¶</a></p>
+<p id="section-1-3">The repository structure includes the account's persistent identifier, and the overall repository structure is cryptographically signed. The authenticity of the entire repository can be verified by resolving the account identifier to the current public key. Data records are not signed individually. Details of account identifier systems and their resolution process are out of scope for this document.<a href="#section-1-3" class="pilcrow">¶</a></p>
+<p id="section-1-4">Large binary data such as images and media files are not stored directly within repositories. Instead, such data is stored externally and referenced in records by a content hash link.<a href="#section-1-4" class="pilcrow">¶</a></p>
+<p id="section-1-5">The protocol provides efficient synchronization mechanisms for propagating public repository state changes across the network, supporting both low-latency streaming updates and bulk synchronization scenarios. Synchronization can take place between any two parties, from an upstream publisher to a downstream consumer. Intermediate parties can redistribute ("relay") data, and consumers can cryptographically verify the integrity and authenticity of received repository data. This allows for flexibility in network topology to improve overall network resilience and efficiency.<a href="#section-1-5" class="pilcrow">¶</a></p>
+<p id="section-1-6">Consumers can confirm the integrity of the entire repository to detect dropped or withheld updates. The protocol allows consumers to maintain partial replicas (eg, of only specific record types). It is also possible to request verifiable "inclusion proofs" for individual records on demand.<a href="#section-1-6" class="pilcrow">¶</a></p>
+<p id="section-1-7">This document describes two synchronization mechanisms. Complete serialized repositories can be fetched over HTTP as a snapshot. Updates to one or more repositories can be distributed as a stream of messages. This document describes both a generic structure and semantics for streaming messages, and a specific WebSocket transport and message encoding scheme.<a href="#section-1-7" class="pilcrow">¶</a></p>
+<p id="section-1-8">This document describes version <code>3</code> of the repository format.<a href="#section-1-8" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="repo-semantics">
+<section id="section-2">
+      <h2 id="name-repository-semantics">
+<a href="#section-2" class="section-number selfRef">2. </a><a href="#name-repository-semantics" class="section-name selfRef">Repository Semantics</a>
+      </h2>
+<p id="section-2-1">Records within a repository are discrete units of structured data, identified by a unique path and versioned by content hash. Records conform to a generic data model, but the content, schema, and semantics of records are varied and application-specific. Records are grouped by type under "collections".<a href="#section-2-1" class="pilcrow">¶</a></p>
+<p id="section-2-2">The current state of a repository is summarized in a signed "commit". Any change to the contents of the repository updates the current commit. Commits for an individual account's repository are serialized using a monotonically increasing "revision" identifier.<a href="#section-2-2" class="pilcrow">¶</a></p>
+<p id="section-2-3">Updates to repositories may include operations on multiple records in a batch mutation that results in a single signed commit. Implementations should apply practical limits on batch sizes to support efficient processing and distribution of repository changes.<a href="#section-2-3" class="pilcrow">¶</a></p>
+<div id="account-ids">
+<section id="section-2.1">
+        <h3 id="name-account-identifiers">
+<a href="#section-2.1" class="section-number selfRef">2.1. </a><a href="#name-account-identifiers" class="section-name selfRef">Account Identifiers</a>
+        </h3>
+<p id="section-2.1-1">Repository commit objects (<a href="#commits" class="auto internal xref">Section 3.2</a>) contain a persistent account identifier, which indicates the publisher of the repository. This account identifier can be resolved to obtain the current cryptographic public keys for the account, and those keys can be used to verify the authenticity of the repository and the records it contains.<a href="#section-2.1-1" class="pilcrow">¶</a></p>
+<p id="section-2.1-2">The keys associated with an account may be rotated over time. The most recent commit must always be verifiable using the currently resolvable signing key. When rotating signing keys, a new repository commit must be created, even if the contents and structure of the repository remain unchanged.<a href="#section-2.1-2" class="pilcrow">¶</a></p>
+<p id="section-2.1-3">This document does not include details or recommendations on account identifier systems.<a href="#section-2.1-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="revs">
+<section id="section-2.2">
+        <h3 id="name-revisions">
+<a href="#section-2.2" class="section-number selfRef">2.2. </a><a href="#name-revisions" class="section-name selfRef">Revisions</a>
+        </h3>
+<p id="section-2.2-1">Repository commits include a revision field (<code>rev</code>) that acts as a logical clock for updates to the repository over time. The revision string is a Timestamp Identifier (TID) as described in <a href="#tid" class="auto internal xref">Appendix C</a>.<a href="#section-2.2-1" class="pilcrow">¶</a></p>
+<p id="section-2.2-2">Revisions may be used when comparing two versions of a repository to determine which is more recent. This is particularly relevant when synchronizing repositories indirectly, or from multiple sources over time.<a href="#section-2.2-2" class="pilcrow">¶</a></p>
+<p id="section-2.2-3">If a commit TID value corresponds to a timestamp in the future (beyond a short period to accommodate clock drift), the commit SHOULD be ignored. This is to ensure that a newly published commit (with a TID corresponding to the current time) will reliably be accepted as current by the entire network.<a href="#section-2.2-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="repo-structure">
+<section id="section-3">
+      <h2 id="name-repository-structure">
+<a href="#section-3" class="section-number selfRef">3. </a><a href="#name-repository-structure" class="section-name selfRef">Repository Structure</a>
+      </h2>
+<p id="section-3-1">Repositories are structured as a Merkle Search Tree (<a href="#mst" class="auto internal xref">Section 4</a>) with a cryptographically signed commit object referencing the tree root.<a href="#section-3-1" class="pilcrow">¶</a></p>
+<p id="section-3-2">The MST structure provides several fundamental properties for repository operations. As a content-addressed structure, it enables efficient verification of data. The MST maintains lexicographic key ordering, enabling structural sharing of intermediate tree nodes for related records. It is probabilistically self-balancing, offering consistent performance characteristics. Additionally, the MST exhibits unicity, meaning that any given set of keys and values will always produce the same tree structure and root hash regardless of insertion order.<a href="#section-3-2" class="pilcrow">¶</a></p>
+<p id="section-3-3">Repository contents are encoded using deterministic CBOR serialization and organized as a directed acyclic graph where data objects reference each other through content hashes. These hash-identified data objects, referred to as "blocks," include three distinct types: commit objects, MST internal nodes, and data records.<a href="#section-3-3" class="pilcrow">¶</a></p>
+<div id="repo-path">
+<section id="section-3.1">
+        <h3 id="name-record-paths">
+<a href="#section-3.1" class="section-number selfRef">3.1. </a><a href="#name-record-paths" class="section-name selfRef">Record Paths</a>
+        </h3>
+<p id="section-3.1-1">Records within a repository are identified by a non-empty case-sensitive ASCII string called the "path". Records are stored sorted lexicographically by path, and the efficiency of some repository operations is impacted by sort order.<a href="#section-3.1-1" class="pilcrow">¶</a></p>
+<p id="section-3.1-2">A path string is the combination of a collection type name and a record key, joined by a single forward slash character: <code>&lt;collection&gt;/&lt;record-key&gt;</code>. A path MUST consist of exactly two segments separated by <code>/</code>, with no leading or trailing slash.<a href="#section-3.1-2" class="pilcrow">¶</a></p>
+<p id="section-3.1-3">Collection names use the Namespaced Identifier (NSID) syntax described in <a href="#nsid" class="auto internal xref">Appendix D</a>. They have a prefix-ordered namespace structure, which means that records of the same collection are stored adjacently, and that collections under the same authority are grouped together. When included in record paths, NSIDs must have normalized casing, and paths with non-normalized casing MUST be rejected.<a href="#section-3.1-3" class="pilcrow">¶</a></p>
+<p id="section-3.1-4">Record keys uniquely identify records within a collection. Record keys are case-sensitive and MUST satisfy the following syntax:<a href="#section-3.1-4" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-3.1-5.1">
+            <p id="section-3.1-5.1.1">Allowed characters are ASCII alphanumerics (<code>A-Z</code>, <code>a-z</code>, <code>0-9</code>), period (<code>.</code>), hyphen (<code>-</code>), underscore (<code>_</code>), colon (<code>:</code>), and tilde (<code>~</code>)<a href="#section-3.1-5.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-3.1-5.2">
+            <p id="section-3.1-5.2.1">Length between 1 and 512 characters (inclusive)<a href="#section-3.1-5.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-3.1-5.3">
+            <p id="section-3.1-5.3.1">The literal values <code>.</code> and <code>..</code> are prohibited<a href="#section-3.1-5.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-3.1-6">The syntax of record keys may be constrained further on a per-collection basis at the application layer. A common choice is to use the Timestamp Identifier (TID) (<a href="#tid" class="auto internal xref">Appendix C</a>) syntax, which results in lexicographic sorting by time within a collection. This means that "new" records are all grouped together within a given collection.<a href="#section-3.1-6" class="pilcrow">¶</a></p>
+<p id="section-3.1-7">Note that both the NSID and record key string syntaxes are valid path components as defined in Section 3.3 of <span>[<a href="#RFC3986" class="cite xref">RFC3986</a>]</span>. It is important to maintain this property.<a href="#section-3.1-7" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="commits">
+<section id="section-3.2">
+        <h3 id="name-commit-objects">
+<a href="#section-3.2" class="section-number selfRef">3.2. </a><a href="#name-commit-objects" class="section-name selfRef">Commit Objects</a>
+        </h3>
+<p id="section-3.2-1">Commit objects serve as the authoritative root of each repository, establishing cryptographic ownership and providing a verifiable reference to the state of a repository at a particular point in time. Each commit is digitally signed by the repository account owner and contains metadata necessary for verification.<a href="#section-3.2-1" class="pilcrow">¶</a></p>
+<p id="section-3.2-2">A commit object contains the following data fields:<a href="#section-3.2-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-3.2-3.1">
+            <p id="section-3.2-3.1.1"><strong><code>did</code></strong> (string, required): The resolvable account identifier associated with the repository as described in <a href="#account-ids" class="auto internal xref">Section 2.1</a><a href="#section-3.2-3.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-3.2-3.2">
+            <p id="section-3.2-3.2.1"><strong><code>version</code></strong> (integer, required): Repository format version, fixed value of <strong><code>3</code></strong> for the current specification<a href="#section-3.2-3.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-3.2-3.3">
+            <p id="section-3.2-3.3.1"><strong><code>data</code></strong> (CID link, required): Content hash link to the root of the repository's MST structure<a href="#section-3.2-3.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-3.2-3.4">
+            <p id="section-3.2-3.4.1"><strong><code>rev</code></strong> (string, required): Repository revision identifier that functions as a logical clock and must increase monotonically (see <a href="#revs" class="auto internal xref">Section 2.2</a>). Syntax MUST match <a href="#tid" class="auto internal xref">Appendix C</a>.<a href="#section-3.2-3.4.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-3.2-3.5">
+            <p id="section-3.2-3.5.1"><strong><code>prev</code></strong> (CID link, optional and nullable): Optional content hash link to the previous commit object in the repository's history chain. While included for backward compatibility with version 2 repositories, this field is typically <code>null</code> in version 3 implementations<a href="#section-3.2-3.5.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-3.2-3.6">
+            <p id="section-3.2-3.6.1"><strong><code>sig</code></strong> (byte array, required): Cryptographic signature over the commit contents.<a href="#section-3.2-3.6.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-3.2-4">Commit objects are signed by the key declared by the repository owner's resolvable identifier. Neither the signature nor the signed commit object contains information about the curve type or specific public key used for signing. This information must be obtained by resolving the account identifier as described in <a href="#account-ids" class="auto internal xref">Section 2.1</a>.<a href="#section-3.2-4" class="pilcrow">¶</a></p>
+<p id="section-3.2-5">The procedure for signing commit objects:<a href="#section-3.2-5" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-3.2-6">
+<li id="section-3.2-6.1">
+            <p id="section-3.2-6.1.1">Encode the unsigned commit object (with <code>sig</code> field entirely absent) as CBOR<a href="#section-3.2-6.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-3.2-6.2">
+            <p id="section-3.2-6.2.1">Sign the encoded bytes as described in <a href="#crypto" class="auto internal xref">Appendix B</a><a href="#section-3.2-6.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-3.2-6.3">
+            <p id="section-3.2-6.3.1">Include the signature bytes in the <code>sig</code> field<a href="#section-3.2-6.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+<p id="section-3.2-7">To verify the signature, remove the <code>sig</code> field and encode the unsigned commit object as CBOR. Then verify the signature against those encoded bytes.<a href="#section-3.2-7" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="records">
+<section id="section-3.3">
+        <h3 id="name-records">
+<a href="#section-3.3" class="section-number selfRef">3.3. </a><a href="#name-records" class="section-name selfRef">Records</a>
+        </h3>
+<p id="section-3.3-1">Records stored within a repository are always objects (or "maps") encoded as CBOR, following the data model and encoding rules described in <a href="#data-model" class="auto internal xref">Appendix A</a>. Each record must include a top-level field named <code>$type</code> with a string value matching the collection type name (NSID) of the path that the record is stored at. NSIDs in this context must have normalized casing, and records with non-normalized NSID in <code>$type</code> must be rejected.<a href="#section-3.3-1" class="pilcrow">¶</a></p>
+<p id="section-3.3-2">Invalid or corrupt data in individual records should not impact processing of the overall repository data structure, or the processing of other valid records in the same repository.<a href="#section-3.3-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="mst">
+<section id="section-4">
+      <h2 id="name-merkle-search-tree">
+<a href="#section-4" class="section-number selfRef">4. </a><a href="#name-merkle-search-tree" class="section-name selfRef">Merkle Search Tree</a>
+      </h2>
+<p id="section-4-1">The Merkle Search Tree (MST) structure is deterministically reproducible from any given key-value mapping, where keys are non-empty byte strings (corresponding to a path) and values are content hash link references to records. This deterministic construction ensures that identical input sets always produce the same root hash regardless of insertion order.<a href="#section-4-1" class="pilcrow">¶</a></p>
+<p id="section-4-2">The tree's structural organization depends solely on the keys present, not on the record values they reference. When a record value changes, the new content hash propagates up through the tree nodes to the root, but the tree's shape and node organization remain unchanged.<a href="#section-4-2" class="pilcrow">¶</a></p>
+<p id="section-4-3">The MST data structure was first published in <span>[<a href="#MSTPAPER" class="cite xref">MSTPAPER</a>]</span>.<a href="#section-4-3" class="pilcrow">¶</a></p>
+<div id="mst-structure">
+<section id="section-4.1">
+        <h3 id="name-tree-structure">
+<a href="#section-4.1" class="section-number selfRef">4.1. </a><a href="#name-tree-structure" class="section-name selfRef">Tree Structure</a>
+        </h3>
+<p id="section-4.1-1">Each MST node contains a list of key-value entries and references to child subtrees. Entries and subtree links are maintained in lexicographic order, with all keys in a linked subtree falling within the range corresponding to that link's position. The ordering proceeds from left (lexicographically first) to right (lexicographically last). Unlike the CBOR encoding map key sorting order (described in <a href="#cbor-encoding" class="auto internal xref">Appendix A.2</a>), tree keys are not sorted length-first.<a href="#section-4.1-1" class="pilcrow">¶</a></p>
+<p id="section-4.1-2">Keys are assigned to tree levels based on a layer value computed from the key itself. Nodes at each level only contain keys with the corresponding layer value, while subtree links point to nodes containing keys that fall within specific lexicographic ranges but have lower layer values. Adjacent keys may appear within the same node, but adjacent subtrees must be separated by at least one key entry to prevent structural ambiguity.<a href="#section-4.1-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="mst-layer">
+<section id="section-4.2">
+        <h3 id="name-layer-calculation">
+<a href="#section-4.2" class="section-number selfRef">4.2. </a><a href="#name-layer-calculation" class="section-name selfRef">Layer Calculation</a>
+        </h3>
+<p id="section-4.2-1">The layer for a given key is calculated using SHA-256 with a 2-bit grouping scheme that provides an average fanout of 4:<a href="#section-4.2-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-4.2-2">
+<li id="section-4.2-2.1">
+            <p id="section-4.2-2.1.1">Compute the SHA-256 hash of the key (byte string) with binary output<a href="#section-4.2-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-4.2-2.2">
+            <p id="section-4.2-2.2.1">Count the number of leading binary zeros in the hash<a href="#section-4.2-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-4.2-2.3">
+            <p id="section-4.2-2.3.1">Divide by 2, rounding down to the nearest integer<a href="#section-4.2-2.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+<p id="section-4.2-3">Examples of layer calculation:<a href="#section-4.2-3" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.2-4.1">
+            <p id="section-4.2-4.1.1"><code>key1</code>: SHA-256 begins <code>100000010111...</code> → layer 0<a href="#section-4.2-4.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-4.2-4.2">
+            <p id="section-4.2-4.2.1"><code>key7</code>: SHA-256 begins <code>000111100011...</code> → layer 1<a href="#section-4.2-4.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-4.2-4.3">
+            <p id="section-4.2-4.3.1"><code>key515</code>: SHA-256 begins <code>000000000111...</code> → layer 4<a href="#section-4.2-4.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-4.2-5">When processing the MST structure, implementations must verify the layer assignment and ordering of keys. While this verification is most essential for untrusted inputs, implementations should perform these checks consistently regardless of data source. Additional validation of node size limits and other structural parameters is required to prevent resource exhaustion attacks, as detailed in Security Considerations (<a href="#security" class="auto internal xref">Section 11</a>).<a href="#section-4.2-5" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="mst-example">
+<section id="section-4.3">
+        <h3 id="name-mst-construction-example">
+<a href="#section-4.3" class="section-number selfRef">4.3. </a><a href="#name-mst-construction-example" class="section-name selfRef">MST Construction Example</a>
+        </h3>
+<p id="section-4.3-1">The following is a Merkle Search Tree containing 9 records with keys A-I. Each key would include a pointer to some record hash, though that hash is irrelevant to the construction of the tree. Each asterisk (<code>*</code>) represents a content hash link to the subtree under it.<a href="#section-4.3-1" class="pilcrow">¶</a></p>
+<p id="section-4.3-2">For the sake of illustration, assume the following layer calculations:<a href="#section-4.3-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.3-3.1">
+            <p id="section-4.3-3.1.1"><code>layer(D) = 2</code><a href="#section-4.3-3.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-4.3-3.2">
+            <p id="section-4.3-3.2.1"><code>layer(A|E|I) = 1</code><a href="#section-4.3-3.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-4.3-3.3">
+            <p id="section-4.3-3.3.1"><code>layer(B|C|F|G|H) = 0</code><a href="#section-4.3-3.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<span id="name-example-mst-structure"></span><div id="f-mst-example">
+<figure id="figure-1">
+          <div id="section-4.3-4.1">
+            <div class="alignLeft art-svg artwork" id="section-4.3-4.1.1">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" height="240" width="168" viewBox="0 0 168 240" class="diagram" text-anchor="middle" font-family="monospace" font-size="13px" stroke-linecap="round">
+                <path d="M 24,80 L 24,120" fill="none" stroke="black"></path>
+                <path d="M 40,144 L 40,184" fill="none" stroke="black"></path>
+                <path d="M 80,32 L 80,56" fill="none" stroke="black"></path>
+                <path d="M 136,80 L 136,120" fill="none" stroke="black"></path>
+                <path d="M 136,136 L 136,184" fill="none" stroke="black"></path>
+                <path d="M 32,64 L 128,64" fill="none" stroke="black"></path>
+                <path d="M 16,128 L 32,128" fill="none" stroke="black"></path>
+                <path d="M 120,128 L 152,128" fill="none" stroke="black"></path>
+                <path d="M 32,192 L 48,192" fill="none" stroke="black"></path>
+                <path d="M 120,192 L 152,192" fill="none" stroke="black"></path>
+                <circle cx="24" cy="96" r="6" class="closeddot" fill="black"></circle>
+                <circle cx="40" cy="160" r="6" class="closeddot" fill="black"></circle>
+                <circle cx="80" cy="32" r="6" class="closeddot" fill="black"></circle>
+                <circle cx="136" cy="96" r="6" class="closeddot" fill="black"></circle>
+                <circle cx="136" cy="160" r="6" class="closeddot" fill="black"></circle>
+                <g class="text">
+                  <text x="80" y="84">|</text>
+                  <text x="80" y="100">D</text>
+                  <text x="8" y="148">|</text>
+                  <text x="112" y="148">|</text>
+                  <text x="160" y="148">|</text>
+                  <text x="8" y="164">A</text>
+                  <text x="112" y="164">E</text>
+                  <text x="160" y="164">I</text>
+                  <text x="24" y="212">|</text>
+                  <text x="56" y="212">|</text>
+                  <text x="112" y="212">|</text>
+                  <text x="136" y="212">|</text>
+                  <text x="160" y="212">|</text>
+                  <text x="24" y="228">B</text>
+                  <text x="56" y="228">C</text>
+                  <text x="112" y="228">F</text>
+                  <text x="136" y="228">G</text>
+                  <text x="160" y="228">H</text>
+                </g>
+              </svg><a href="#section-4.3-4.1.1" class="pilcrow">¶</a>
+</div>
+</div>
+<figcaption><a href="#figure-1" class="selfRef">Figure 1</a>:
+<a href="#name-example-mst-structure" class="selfRef">Example MST Structure</a>
+          </figcaption></figure>
+</div>
+</section>
+</div>
+<div id="mst-empty-nodes">
+<section id="section-4.4">
+        <h3 id="name-empty-nodes">
+<a href="#section-4.4" class="section-number selfRef">4.4. </a><a href="#name-empty-nodes" class="section-name selfRef">Empty Nodes</a>
+        </h3>
+<p id="section-4.4-1">An empty repository containing no records is represented as a single MST node with no entries (leaves or subtree links). This is the only case where an entirely empty node is permitted.<a href="#section-4.4-1" class="pilcrow">¶</a></p>
+<p id="section-4.4-2">Nodes that contain no key/value entries but do contain a subtree link are sometimes necessary at intermediate positions, and are allowed provided those subtrees eventually contain one or more key entries. However, such nodes MUST NOT appear at the root position — the root MUST either contain key entries or be the special case of a completely empty repository. Similarly, nodes without key entries MUST NOT appear at leaf positions except for the empty repository case.<a href="#section-4.4-2" class="pilcrow">¶</a></p>
+<p id="section-4.4-3">This structure ensures that nodes lacking key-value entries are pruned from the top and bottom of the tree while preserving intermediate nodes that maintain proper height relationships and prevent subtree links from skipping layers.<a href="#section-4.4-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="mst-nodes">
+<section id="section-4.5">
+        <h3 id="name-mst-node-schema">
+<a href="#section-4.5" class="section-number selfRef">4.5. </a><a href="#name-mst-node-schema" class="section-name selfRef">MST Node Schema</a>
+        </h3>
+<p id="section-4.5-1">Given their prevalence throughout the repository structure, MST nodes require a compact binary representation for storage efficiency. Keys within each node use prefix compression, where each entry specifies the number of bytes it shares with the preceding key in the array. The first entry in each node contains the complete key with a prefix length of zero. This compression applies only within individual nodes and does not extend across node boundaries. The compression scheme is mandatory to ensure deterministic MST structure across all implementations.<a href="#section-4.5-1" class="pilcrow">¶</a></p>
+<p id="section-4.5-2">MST nodes contain the following fields:<a href="#section-4.5-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.5-3.1">
+            <p id="section-4.5-3.1.1"><code>l</code> (CID link, required but nullable): Reference to a subtree node at a lower layer containing keys that sort lexicographically before all keys in the current node<a href="#section-4.5-3.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-4.5-3.2">
+            <p id="section-4.5-3.2.1"><code>e</code> (array, required): Ordered array of entry objects, each containing:<a href="#section-4.5-3.2.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.5-3.2.2.1">
+                <p id="section-4.5-3.2.2.1.1"><code>p</code> (integer, required): Number of bytes shared with the previous entry in this node<a href="#section-4.5-3.2.2.1.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-4.5-3.2.2.2">
+                <p id="section-4.5-3.2.2.2.1"><code>k</code> (byte string, required): Key suffix remaining after removing the shared prefix bytes<a href="#section-4.5-3.2.2.2.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-4.5-3.2.2.3">
+                <p id="section-4.5-3.2.2.3.1"><code>v</code> (CID link, required): Reference to the record data for this entry<a href="#section-4.5-3.2.2.3.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-4.5-3.2.2.4">
+                <p id="section-4.5-3.2.2.4.1"><code>t</code> (CID link, required but nullable): Reference to a subtree node at a lower layer containing keys that sort after this entry's key but before the next entry's key in the current node<a href="#section-4.5-3.2.2.4.1" class="pilcrow">¶</a></p>
+</li>
+            </ul>
+</li>
+        </ul>
+<p id="section-4.5-4">Content hash links appearing within an MST node — the <code>l</code> and <code>t</code> subtree links, and the <code>v</code> record link — MUST use the constrained format defined in <a href="#cid-link" class="auto internal xref">Appendix A.1</a> for referencing CBOR encoded data.<a href="#section-4.5-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="mst-node-example">
+<section id="section-4.6">
+        <h3 id="name-mst-node-example">
+<a href="#section-4.6" class="section-number selfRef">4.6. </a><a href="#name-mst-node-example" class="section-name selfRef">MST Node Example</a>
+        </h3>
+<p id="section-4.6-1">The following example shows an MST node at layer 1 containing two subtree pointers and two key-value entries. The node contents in order are:<a href="#section-4.6-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.6-2.1">
+            <p id="section-4.6-2.1.1">Left subtree: content hash link <code>0x01711220643b9326...</code><a href="#section-4.6-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-4.6-2.2">
+            <p id="section-4.6-2.2.1">Entry: <code>key10</code> → record content hash link <code>0x017112202d9aa87e...</code><a href="#section-4.6-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-4.6-2.3">
+            <p id="section-4.6-2.3.1">Right subtree: content hash link <code>0x0171122047e2886f...</code><a href="#section-4.6-2.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-4.6-2.4">
+            <p id="section-4.6-2.4.1">Entry: <code>key7</code> → record content hash link <code>0x0171122010b6da2c...</code><a href="#section-4.6-2.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-4.6-3">This node would be encoded as follows:<a href="#section-4.6-3" class="pilcrow">¶</a></p>
+<div class="alignLeft art-text artwork" id="section-4.6-4">
+<pre>
+{
+  l: 0x01711220643b9326...
+  e: [
+    {
+      p: 0,
+      k: "key10",
+      v: 0x017112202d9aa87e...
+      t: 0x0171122047e2886f...
+    },
+    {
+      p: 3,
+      k: "7",
+      v: 0x0171122010b6da2c...
+      t: null
+    }
+  ]
+}
+</pre><a href="#section-4.6-4" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+</section>
+</div>
+<div id="serialization">
+<section id="section-5">
+      <h2 id="name-repository-serialization-fo">
+<a href="#section-5" class="section-number selfRef">5. </a><a href="#name-repository-serialization-fo" class="section-name selfRef">Repository Serialization Format</a>
+      </h2>
+<p id="section-5-1">Repositories are serialized for transmission and storage as a concatenated sequence of block data, where blocks represent the CBOR-encoded records, MST nodes, and commit objects that comprise the repository structure. The serialization is prefixed with a header that references the repository's commit object as the "root" block.<a href="#section-5-1" class="pilcrow">¶</a></p>
+<p id="section-5-2">Serialized repositories may contain partial repository state, such as when transmitting cryptographic proofs for specific records. In these situations, they may not include unrelated MST nodes or records outside the proof path.<a href="#section-5-2" class="pilcrow">¶</a></p>
+<p id="section-5-3">For historical reasons, the recommended Media Type for this serialization format is <code>application/vnd.ipld.car</code>.<a href="#section-5-3" class="pilcrow">¶</a></p>
+<p id="section-5-4">The block-and-header layout described here is compatible with Content-Addressable archive (CAR) formats such as <span>[<a href="#DASL-CAR" class="cite xref">DASL-CAR</a>]</span>.<a href="#section-5-4" class="pilcrow">¶</a></p>
+<div id="serialization-header">
+<section id="section-5.1">
+        <h3 id="name-header-format">
+<a href="#section-5.1" class="section-number selfRef">5.1. </a><a href="#name-header-format" class="section-name selfRef">Header Format</a>
+        </h3>
+<p id="section-5.1-1">The header is constructed by CBOR-encoding an object with the following fields:<a href="#section-5.1-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-5.1-2.1">
+            <p id="section-5.1-2.1.1"><code>version</code> (integer, required): Fixed value of <code>1</code><a href="#section-5.1-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-5.1-2.2">
+            <p id="section-5.1-2.2.1"><code>roots</code> (CID link array, required): Single-element array containing the content hash link of the commit block<a href="#section-5.1-2.2.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-5.1-3">The CBOR-encoded header is prefixed with its byte length encoded as an unsigned LEB128 integer as described in Section 5.2.2 of <span>[<a href="#WEBASSEMBLY" class="cite xref">WEBASSEMBLY</a>]</span>.<a href="#section-5.1-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="serialization-blocks">
+<section id="section-5.2">
+        <h3 id="name-block-format">
+<a href="#section-5.2" class="section-number selfRef">5.2. </a><a href="#name-block-format" class="section-name selfRef">Block Format</a>
+        </h3>
+<p id="section-5.2-1">Following the header, each repository block is serialized by concatenating:<a href="#section-5.2-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-5.2-2">
+<li id="section-5.2-2.1">
+            <p id="section-5.2-2.1.1">The combined byte length of the following two components, encoded as an unsigned LEB128 integer<a href="#section-5.2-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-5.2-2.2">
+            <p id="section-5.2-2.2.1">The block's content hash in binary encoding as specified in <a href="#cid-link" class="auto internal xref">Appendix A.1</a> (always 36 bytes)<a href="#section-5.2-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-5.2-2.3">
+            <p id="section-5.2-2.3.1">The CBOR-encoded block data<a href="#section-5.2-2.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+<span id="name-repository-serialization-la"></span><div id="f-serialization">
+<figure id="figure-2">
+          <div id="section-5.2-3.1">
+            <div class="alignLeft art-svg artwork" id="section-5.2-3.1.1">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" height="64" width="600" viewBox="0 0 600 64" class="diagram" text-anchor="middle" font-family="monospace" font-size="13px" stroke-linecap="round">
+                <path d="M 16,32 L 64,32" fill="none" stroke="black"></path>
+                <path d="M 136,32 L 184,32" fill="none" stroke="black"></path>
+                <path d="M 216,32 L 376,32" fill="none" stroke="black"></path>
+                <path d="M 432,32 L 584,32" fill="none" stroke="black"></path>
+                <g class="text">
+                  <text x="8" y="36">|</text>
+                  <text x="100" y="36">Header</text>
+                  <text x="192" y="36">|</text>
+                  <text x="208" y="36">|</text>
+                  <text x="404" y="36">Data</text>
+                  <text x="592" y="36">|</text>
+                  <text x="16" y="52">[</text>
+                  <text x="40" y="52">len</text>
+                  <text x="64" y="52">|</text>
+                  <text x="100" y="52">header</text>
+                  <text x="152" y="52">block</text>
+                  <text x="184" y="52">]</text>
+                  <text x="216" y="52">[</text>
+                  <text x="240" y="52">len</text>
+                  <text x="264" y="52">|</text>
+                  <text x="292" y="52">hash</text>
+                  <text x="320" y="52">|</text>
+                  <text x="352" y="52">block</text>
+                  <text x="384" y="52">]</text>
+                  <text x="400" y="52">[</text>
+                  <text x="424" y="52">len</text>
+                  <text x="448" y="52">|</text>
+                  <text x="476" y="52">hash</text>
+                  <text x="504" y="52">|</text>
+                  <text x="536" y="52">block</text>
+                  <text x="568" y="52">]</text>
+                  <text x="584" y="52">…</text>
+                </g>
+              </svg><a href="#section-5.2-3.1.1" class="pilcrow">¶</a>
+</div>
+</div>
+<figcaption><a href="#figure-2" class="selfRef">Figure 2</a>:
+<a href="#name-repository-serialization-la" class="selfRef">Repository Serialization Layout</a>
+          </figcaption></figure>
+</div>
+<p id="section-5.2-4">The block content hash MUST match the block data.<a href="#section-5.2-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="serialization-ordering">
+<section id="section-5.3">
+        <h3 id="name-block-ordering">
+<a href="#section-5.3" class="section-number selfRef">5.3. </a><a href="#name-block-ordering" class="section-name selfRef">Block Ordering</a>
+        </h3>
+<p id="section-5.3-1">Producers SHOULD emit blocks in pre-order traversal of the included repository portion: header, commit object, root MST node, then a recursive depth-first interleaving of subtree nodes and the records they reference.<a href="#section-5.3-1" class="pilcrow">¶</a></p>
+<p id="section-5.3-2">Preorder traversal enables streaming verification of repositories, allowing parsers to walk the MST structure and output key-to-record mappings while maintaining minimal MST state in memory. This approach supports efficient stream processing of large repositories without requiring complete buffering of the serialized data.<a href="#section-5.3-2" class="pilcrow">¶</a></p>
+<p id="section-5.3-3">Parsers MUST tolerate other block orderings, duplicate occurrences of the same block, and additional unrelated blocks. Specifically:<a href="#section-5.3-3" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-5.3-4.1">
+            <p id="section-5.3-4.1.1">Duplicate blocks SHOULD be deduplicated rather than treated as an error.<a href="#section-5.3-4.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-5.3-4.2">
+            <p id="section-5.3-4.2.1">Dangling references — for example, content hash links pointing to records or blobs that are not present in the serialized data — MAY be present and unresolvable; this is not an error in itself.<a href="#section-5.3-4.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-5.3-4.3">
+            <p id="section-5.3-4.3.1">Unrelated blocks not referenced by the repository structure SHOULD be ignored. Excessive quantities of such blocks MAY be treated as a form of resource abuse; see <a href="#security" class="auto internal xref">Section 11</a>.<a href="#section-5.3-4.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+</section>
+</div>
+</section>
+</div>
+<div id="accounts">
+<section id="section-6">
+      <h2 id="name-account-hosting">
+<a href="#section-6" class="section-number selfRef">6. </a><a href="#name-account-hosting" class="section-name selfRef">Account Hosting</a>
+      </h2>
+<p id="section-6-1">Each node in the network that synchronizes, stores, and distributes repository data maintains hosting status for each account. The status indicates whether the account is "active" in the network, or has been temporarily or permanently removed, in which case repository data should not be synchronized further. Hosting status can be set by the account holder themselves or their canonical hosting provider, and changes propagate to downstream consumers throughout the network. Each downstream service or node in the network may set a local inactive hosting status, declining to distribute that account's repository data.<a href="#section-6-1" class="pilcrow">¶</a></p>
+<p id="section-6-2">Each account has a persistent identifier that can be resolved to both a public key and a canonical hosting location. Account identifier systems and their resolution mechanisms are out of scope for this document. Account hosting status is maintained and transmitted over the synchronization protocol, separate from the lifecycle of account identifiers.<a href="#section-6-2" class="pilcrow">¶</a></p>
+<p id="section-6-3">The account hosting status itself may always be redistributed, even for inactive accounts.<a href="#section-6-3" class="pilcrow">¶</a></p>
+<div id="account-status">
+<section id="section-6.1">
+        <h3 id="name-hosting-status">
+<a href="#section-6.1" class="section-number selfRef">6.1. </a><a href="#name-hosting-status" class="section-name selfRef">Hosting Status</a>
+        </h3>
+<p id="section-6.1-1">Account hosting status at any point in time can be summarized as the boolean state of being "active" or not. If the account hosting status is not active, repository data for that account MUST NOT be redistributed. Additional context may be provided using a "status" vocabulary, represented as a string. Account status is represented and transmitted as an <code>active</code> boolean (required) and a <code>status</code> string (optional) together.<a href="#section-6.1-1" class="pilcrow">¶</a></p>
+<p id="section-6.1-2">The defined status values and their meanings are:<a href="#section-6.1-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6.1-3.1">
+            <p id="section-6.1-3.1.1"><code>deleted</code> (<code>active</code> is false): the user or host has deleted the account. Account data SHOULD be removed from the service's infrastructure within a reasonable time frame. Implied to be permanent, but MAY be reverted.<a href="#section-6.1-3.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-6.1-3.2">
+            <p id="section-6.1-3.2.1"><code>deactivated</code> (<code>active</code> is false): the user has temporarily paused the account. Account data MUST NOT be redistributed but does not need to be deleted from infrastructure. Implied time-limited.<a href="#section-6.1-3.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-6.1-3.3">
+            <p id="section-6.1-3.3.1"><code>takendown</code> (<code>active</code> is false): the host or service has taken down the account. Implied to be indefinite in duration, but MAY be reverted.<a href="#section-6.1-3.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-6.1-3.4">
+            <p id="section-6.1-3.4.1"><code>suspended</code> (<code>active</code> is false): the host or service has temporarily paused the account. Implied time-limited.<a href="#section-6.1-3.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-6.1-4">Two additional status values are relevant to the synchronization process itself, and do not imply that the overall hosting status is inactive:<a href="#section-6.1-4" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6.1-5.1">
+            <p id="section-6.1-5.1.1"><code>desynchronized</code> (<code>active</code> MAY be true): the service has detected a problem synchronizing the account's repository and may be missing content.<a href="#section-6.1-5.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-6.1-5.2">
+            <p id="section-6.1-5.2.1"><code>throttled</code> (<code>active</code> MAY be true): the service has paused processing of new content for this account because a rate limit has been exceeded.<a href="#section-6.1-5.2.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-6.1-6">There are no defined status strings to represent generic active status (<code>active</code> is true) or generic inactive status. The status string MAY be omitted.<a href="#section-6.1-6" class="pilcrow">¶</a></p>
+<p id="section-6.1-7">New status values may be defined in the future. Producers MAY emit <code>status</code> strings not listed above, and consumers MUST tolerate unrecognized values. Consumers MUST use the <code>active</code> boolean as the authoritative indicator of overall account visibility, treating the <code>status</code> string as clarification that may inform more specific behavior (for example, whether to delete cached data versus retain it pending reactivation).<a href="#section-6.1-7" class="pilcrow">¶</a></p>
+<p id="section-6.1-8">Producers expose an HTTPS request-response operation that, given an account identifier, returns the producer's current hosting status for that account. This allows consumers to query the present state of an account without subscribing to the message stream — for example, when establishing initial state for an account they have not seen before, or when reconciling diverging upstream reports.<a href="#section-6.1-8" class="pilcrow">¶</a></p>
+<p id="section-6.1-9">The details of the HTTPS request endpoint, the URL path, and the response media type are not specified by this document.<a href="#section-6.1-9" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="account-status-propagation">
+<section id="section-6.2">
+        <h3 id="name-status-propagation">
+<a href="#section-6.2" class="section-number selfRef">6.2. </a><a href="#name-status-propagation" class="section-name selfRef">Status Propagation</a>
+        </h3>
+<p id="section-6.2-1">Account hosting status is not cryptographically authenticated. Status propagates hop-by-hop via streaming synchronization (<a href="#stream-sync" class="auto internal xref">Section 8</a>): each node emits an <code>#account</code> message (<a href="#msg-account" class="auto internal xref">Section 8.4.4</a>) to downstream consumers when the hosting status for an account changes. For intermediate synchronization nodes, this includes changes driven by an <code>#account</code> message received from an upstream.<a href="#section-6.2-1" class="pilcrow">¶</a></p>
+<p id="section-6.2-2">Intermediaries MAY override their upstream's status. For example, a relaying node may take down an account that an upstream still reports as active. Such overrides are propagated downstream as <code>#account</code> messages from the intermediary.<a href="#section-6.2-2" class="pilcrow">¶</a></p>
+<p id="section-6.2-3">When an upstream service is unreachable, downstream services SHOULD retain the previously reported status for some implementation-defined period rather than immediately changing the account to an inactive state. This preserves availability across short upstream outages, and increases resiliency of the network.<a href="#section-6.2-3" class="pilcrow">¶</a></p>
+<p id="section-6.2-4">When account status reported by different upstreams diverges (for example, due to differing moderation policies, or a transient network partition between an upstream and its own upstream), services apply their own policies to reconcile. Querying the account's current authoritative hosting service directly is one way to resolve such ambiguity.<a href="#section-6.2-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="snapshot-sync">
+<section id="section-7">
+      <h2 id="name-snapshot-sync">
+<a href="#section-7" class="section-number selfRef">7. </a><a href="#name-snapshot-sync" class="section-name selfRef">Snapshot Sync</a>
+      </h2>
+<p id="section-7-1">Consumers can retrieve a full serialized snapshot of an account's current repository at any point in time. This can be used to initialize synchronization state for the account during a bootstrap or backfill phase, or to re-synchronize (<a href="#resync" class="auto internal xref">Section 8.6</a>) and reconcile after any discontinuity in the streaming synchronization mechanism. It is also an option for applications and use cases that do not require continuous updates or synchronization over time.<a href="#section-7-1" class="pilcrow">¶</a></p>
+<p id="section-7-2">A full repository snapshot must include the commit object, all MST nodes, and all records. It does not include blob files (<a href="#blob" class="auto internal xref">Section 9</a>).<a href="#section-7-2" class="pilcrow">¶</a></p>
+<p id="section-7-3">Producers expose an HTTP API endpoint which takes an account identifier as a parameter, and returns the serialized repository as the response body. If the account hosting status at the producer is not "active", this is indicated in an error response.<a href="#section-7-3" class="pilcrow">¶</a></p>
+<p id="section-7-4">A producer MAY redirect the request to another producer that holds the requested data — for example, a relaying service redirecting to the account's canonical host, or to a mirroring service with the content cached. Consumers SHOULD follow such HTTP redirects when re-synchronizing per <a href="#resync" class="auto internal xref">Section 8.6</a>.<a href="#section-7-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="stream-sync">
+<section id="section-8">
+      <h2 id="name-streaming-sync">
+<a href="#section-8" class="section-number selfRef">8. </a><a href="#name-streaming-sync" class="section-name selfRef">Streaming Sync</a>
+      </h2>
+<p id="section-8-1">This section describes a low-latency streaming synchronization mechanism which allows consumers to receive repository updates with minimal latency through a WebSocket <span>[<a href="#RFC6455" class="cite xref">RFC6455</a>]</span> connection that they initiate. Streams can contain updates from many distinct account repositories, even aggregating all updates in the network. In addition to repository updates, they include updates to account hosting status and network identities. Whether encompassing the full network or any subset of it, a stream is often referred to as a "firehose".<a href="#section-8-1" class="pilcrow">¶</a></p>
+<p id="section-8-2">To ensure reliable delivery, each message on a given stream is given a monotonically-increasing sequence number. Consumers can track their progress on processing messages and reconnect to the stream using the last-processed sequence number as a cursor value as needed. Producers can maintain a "backfill window" of recently transmitted messages. All consumers receive the same messages in the same order with the same sequence numbers.<a href="#section-8-2" class="pilcrow">¶</a></p>
+<p id="section-8-3">The duration of the backfill window is configured by service providers and should balance value to consumers, resource consumption for producers, and exposure of stale or deleted data. The recommended duration is 72 hours, to allow consumer recovery after a two-day weekend outage.<a href="#section-8-3" class="pilcrow">¶</a></p>
+<p id="section-8-4">The stream synchronization mechanism allows consumers to maintain complete indices of authenticated repository contents without needing to store complete copies of the repository MST structure. This significantly reduces storage overhead.<a href="#section-8-4" class="pilcrow">¶</a></p>
+<div id="diffs">
+<section id="section-8.1">
+        <h3 id="name-repository-diffs">
+<a href="#section-8.1" class="section-number selfRef">8.1. </a><a href="#name-repository-diffs" class="section-name selfRef">Repository Diffs</a>
+        </h3>
+<p id="section-8.1-1">A repository diff carries the data that changed between two repository revisions: the new commit, any new MST nodes, and any created or updated record blocks. Applying a diff to a copy of the prior repository state results in the complete repository at the new revision. Repository diffs are used in the streaming synchronization mechanism.<a href="#section-8.1-1" class="pilcrow">¶</a></p>
+<p id="section-8.1-2">The commits within diffs are signed. Receiving parties can always verify those signatures, and the integrity of the blocks in the diff itself. But unless the receiving party has a full copy of the repository just prior to the diff, it cannot verify the overall integrity of the diff or the final state of the repository. In particular, if record deletion operations were included in the diff, the receiving party cannot enumerate or verify which records were impacted just from the diff.<a href="#section-8.1-2" class="pilcrow">¶</a></p>
+<p id="section-8.1-3">This section describes an "operation inversion" mechanism which allows receiving parties to verify the integrity of diffs when combined with metadata about the record-level operations encapsulated by the diff.<a href="#section-8.1-3" class="pilcrow">¶</a></p>
+<div id="diff-format">
+<section id="section-8.1.1">
+          <h4 id="name-diff-serialization-format">
+<a href="#section-8.1.1" class="section-number selfRef">8.1.1. </a><a href="#name-diff-serialization-format" class="section-name selfRef">Diff Serialization Format</a>
+          </h4>
+<p id="section-8.1.1-1">Diffs use the same serialization format as complete repositories (described in <a href="#serialization" class="auto internal xref">Section 5</a>), with the commit block serving as the root. A diff MUST include:<a href="#section-8.1.1-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.1.1-2.1">
+              <p id="section-8.1.1-2.1.1">The new commit block.<a href="#section-8.1.1-2.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.1.1-2.2">
+              <p id="section-8.1.1-2.2.1">All created and updated record blocks.<a href="#section-8.1.1-2.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.1.1-2.3">
+              <p id="section-8.1.1-2.3.1">All MST nodes in the current repository that did not exist in the prior revision.<a href="#section-8.1.1-2.3.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-8.1.1-3">Required blocks MUST be included in the diff regardless of their presence in earlier repository history. For example, if an MST node was previously present in the repository, then deleted, and subsequently reintroduced during the range that the diff represents, the diff MUST include that block.<a href="#section-8.1.1-3" class="pilcrow">¶</a></p>
+<p id="section-8.1.1-4">Deleted records and prior versions of updated records are excluded from diffs, unless the exact same record value has been included under a different repo path.<a href="#section-8.1.1-4" class="pilcrow">¶</a></p>
+<p id="section-8.1.1-5">A diff MAY include additional MST node blocks or padding blocks; receivers SHOULD ignore them.<a href="#section-8.1.1-5" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="operation-inversion">
+<section id="section-8.1.2">
+          <h4 id="name-operation-inversion">
+<a href="#section-8.1.2" class="section-number selfRef">8.1.2. </a><a href="#name-operation-inversion" class="section-name selfRef">Operation Inversion</a>
+          </h4>
+<p id="section-8.1.2-1">A diff can be accompanied by an explicit operation list declaring the record-level creates, updates, and deletes it represents, along with a claimed previous repository tree root hash. Operation inversion verifies that this declared list is accurate and complete.<a href="#section-8.1.2-1" class="pilcrow">¶</a></p>
+<p id="section-8.1.2-2">To invert a diff against its declared operations:
+1. Extract the diff's MST nodes into a partial tree structure, verifying the integrity of all available nodes and content hash links
+2. Verify the operation list against the partial tree: that every "create" and "update" has a record at the indicated repository path with the given content hash, and every path removed by a "delete" is not present
+3. For each entry in the operation list, apply the inverse operation to the partial MST: each "create" becomes a "delete", "delete" becomes "create", and "update" reverts the record value to the previous version
+4. Compute the root hash of the resulting MST
+5. Compare the computed root hash to the claimed previous root hash<a href="#section-8.1.2-2" class="pilcrow">¶</a></p>
+<p id="section-8.1.2-3">If the hashes match, the operation list is accurate and exhaustive. If they differ, either the operation list is incomplete or the diff is internally inconsistent; in either case the diff MUST be rejected.<a href="#section-8.1.2-3" class="pilcrow">¶</a></p>
+<p id="section-8.1.2-4">Producers of diffs intended to support operation inversion MUST include, in addition to the blocks required by <a href="#diff-format" class="auto internal xref">Section 8.1.1</a>, the MST nodes for keys directly adjacent (in lexicographic order) to mutated keys. Without these adjacent nodes, the inverse operation cannot be correctly applied to the partial MST. Diffs carried in streaming synchronization messages (<a href="#msg-commit" class="auto internal xref">Section 8.4.2</a>) MUST satisfy this requirement, since stateless consumers rely on operation inversion for verification.<a href="#section-8.1.2-4" class="pilcrow">¶</a></p>
+<p id="section-8.1.2-5">Receivers can track repository root hash values for each account and verify the claimed root hashes provided with the diff. This fixed-size state is significantly smaller than maintaining full repository data.<a href="#section-8.1.2-5" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="websocket">
+<section id="section-8.2">
+        <h3 id="name-websocket-transport">
+<a href="#section-8.2" class="section-number selfRef">8.2. </a><a href="#name-websocket-transport" class="section-name selfRef">WebSocket Transport</a>
+        </h3>
+<p id="section-8.2-1">A consumer (client) establishes a WebSocket connection <span>[<a href="#RFC6455" class="cite xref">RFC6455</a>]</span> to the producer's (server's) stream endpoint. Secure WebSockets (using TLS) MUST be used for any internet-facing deployment.<a href="#section-8.2-1" class="pilcrow">¶</a></p>
+<p id="section-8.2-2">Once the connection is established, the producer sends a sequence of binary WebSocket frames to the consumer. Each frame carries a single message. Servers SHOULD ignore stream messages sent by the consumer: the protocol defined in this document is server-to-client only.<a href="#section-8.2-2" class="pilcrow">¶</a></p>
+<p id="section-8.2-3">Servers and clients SHOULD implement a keepalive system using Ping and Pong WebSocket frames.<a href="#section-8.2-3" class="pilcrow">¶</a></p>
+<div id="frame-format">
+<section id="section-8.2.1">
+          <h4 id="name-frame-format">
+<a href="#section-8.2.1" class="section-number selfRef">8.2.1. </a><a href="#name-frame-format" class="section-name selfRef">Frame Format</a>
+          </h4>
+<p id="section-8.2.1-1">Each binary WebSocket frame contains two CBOR-encoded objects concatenated together: a header followed by a payload. Both objects MUST follow the deterministic CBOR-encoding rules defined in <a href="#cbor-encoding" class="auto internal xref">Appendix A.2</a>.<a href="#section-8.2.1-1" class="pilcrow">¶</a></p>
+<p id="section-8.2.1-2">The header contains:<a href="#section-8.2.1-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.2.1-3.1">
+              <p id="section-8.2.1-3.1.1"><code>op</code> (integer, REQUIRED): the frame operation. The value <code>1</code> indicates a normal message; the value <code>-1</code> indicates an error.<a href="#section-8.2.1-3.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.2.1-3.2">
+              <p id="section-8.2.1-3.2.1"><code>t</code> (string, REQUIRED when <code>op = 1</code>): the message-type name, prefixed with <code>#</code>. For example, <code>#commit</code> for a commit message.<a href="#section-8.2.1-3.2.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-8.2.1-4">The payload is a CBOR object whose schema is determined by the message type indicated in the header. Payloads are always CBOR objects, never arrays or scalars.<a href="#section-8.2.1-4" class="pilcrow">¶</a></p>
+<p id="section-8.2.1-5">Consumers MUST ignore messages with unknown message types (<code>t</code> values).<a href="#section-8.2.1-5" class="pilcrow">¶</a></p>
+<p id="section-8.2.1-6">Producers MAY include additional fields beyond those defined for a given message type, and consumers MUST tolerate unknown fields. Consumers MUST validate message fields and reject messages with invalid data.<a href="#section-8.2.1-6" class="pilcrow">¶</a></p>
+<p id="section-8.2.1-7">A frame MUST NOT exceed 5 MiB in total size, inclusive of the header, payload, and CBOR encoding overhead.<a href="#section-8.2.1-7" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="error-frames">
+<section id="section-8.2.2">
+          <h4 id="name-error-frames">
+<a href="#section-8.2.2" class="section-number selfRef">8.2.2. </a><a href="#name-error-frames" class="section-name selfRef">Error Frames</a>
+          </h4>
+<p id="section-8.2.2-1">When <code>op</code> is <code>-1</code>, the frame is an error frame. The payload contains:<a href="#section-8.2.2-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.2.2-2.1">
+              <p id="section-8.2.2-2.1.1"><code>error</code> (string, REQUIRED): a short machine-readable error name.<a href="#section-8.2.2-2.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.2.2-2.2">
+              <p id="section-8.2.2-2.2.1"><code>message</code> (string, OPTIONAL): a human-readable description of the error.<a href="#section-8.2.2-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-8.2.2-3">After sending an error frame, the producer MUST close the WebSocket connection.<a href="#section-8.2.2-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="pre-upgrade-errors">
+<section id="section-8.2.3">
+          <h4 id="name-pre-upgrade-http-errors">
+<a href="#section-8.2.3" class="section-number selfRef">8.2.3. </a><a href="#name-pre-upgrade-http-errors" class="section-name selfRef">Pre-Upgrade HTTP Errors</a>
+          </h4>
+<p id="section-8.2.3-1">If the producer rejects the WebSocket upgrade request itself, it responds with a standard HTTP status code rather than an error frame. Response bodies SHOULD be JSON containing <code>error</code> and <code>message</code> fields matching the error-frame schema, but consumers MUST tolerate other body content.<a href="#section-8.2.3-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="cursors">
+<section id="section-8.3">
+        <h3 id="name-cursors-and-resumption">
+<a href="#section-8.3" class="section-number selfRef">8.3. </a><a href="#name-cursors-and-resumption" class="section-name selfRef">Cursors and Resumption</a>
+        </h3>
+<p id="section-8.3-1">Synchronization streams include per-message sequence numbers to improve transmission reliability. Sequence numbers are positive integers that increase monotonically across the stream. Sequence semantics are flexible, and they may contain arbitrary gaps between consecutive messages.<a href="#section-8.3-1" class="pilcrow">¶</a></p>
+<p id="section-8.3-2">Consumers track the last sequence number they successfully processed and can specify this as a cursor when reconnecting to receive any missed messages within the producer's backfill window. Note that this results in the last processed message being retransmitted. Consumers are responsible for managing and persisting cursor state themselves: producers do not maintain consumer-specific state across connections. The scope of a cursor is the (hostname, endpoint) pair: a cursor value is meaningful only when reconnecting to the same host and stream endpoint that issued it.<a href="#section-8.3-2" class="pilcrow">¶</a></p>
+<p id="section-8.3-3">Sequence numbers MUST NOT be repeated by producers on the same (hostname, endpoint) pair. If a producer must reset sequence numbers for any reason, it MUST start with a number higher than any previously broadcast.<a href="#section-8.3-3" class="pilcrow">¶</a></p>
+<p id="section-8.3-4">Sequence numbers are integers in the range <code>[1, 2^53)</code>. The upper bound is chosen so that cursors are exactly representable in 64-bit IEEE-754 floating point.<a href="#section-8.3-4" class="pilcrow">¶</a></p>
+<p id="section-8.3-5">Stream behavior depends on the cursor value specified during connection:<a href="#section-8.3-5" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.3-6.1">
+            <p id="section-8.3-6.1.1"><strong>No cursor specified</strong>: The producer begins transmitting from the current stream position, providing only new messages generated after the connection is established.<a href="#section-8.3-6.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-8.3-6.2">
+            <p id="section-8.3-6.2.1"><strong>Future cursor</strong>: When the requested cursor exceeds the current stream sequence number, the producer sends an error frame (with error name <code>FutureCursor</code>) and closes the connection.<a href="#section-8.3-6.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-8.3-6.3">
+            <p id="section-8.3-6.3.1"><strong>Cursor within backfill window</strong>: The producer transmits all persisted messages with sequence numbers greater than or equal to the requested cursor, in order, then continues with the stream once caught up.<a href="#section-8.3-6.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-8.3-6.4">
+            <p id="section-8.3-6.4.1"><strong>Cursor older than backfill window</strong>: The producer sends an informational message indicating that the requested cursor is too old (<code>#info</code> with name <code>OutdatedCursor</code>), then begins transmission at the oldest available message, sends the entire backfill window, and continues with the stream.<a href="#section-8.3-6.4.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-8.3-6.5">
+            <p id="section-8.3-6.5.1"><strong>Cursor value of 0</strong>: The producer treats this as a request for the complete available history, starting at the oldest available message, transmitting the entire backfill window, then continuing with the stream.<a href="#section-8.3-6.5.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+</section>
+</div>
+<div id="msg-types">
+<section id="section-8.4">
+        <h3 id="name-message-types">
+<a href="#section-8.4" class="section-number selfRef">8.4. </a><a href="#name-message-types" class="section-name selfRef">Message Types</a>
+        </h3>
+<p id="section-8.4-1">The repository synchronization stream uses five message types: <code>#commit</code>, <code>#sync</code>, <code>#account</code>, <code>#identity</code>, and <code>#info</code>. This section describes the schema and semantics of these messages. Some fields are common across most message types.<a href="#section-8.4-1" class="pilcrow">¶</a></p>
+<div id="msg-common">
+<section id="section-8.4.1">
+          <h4 id="name-common-message-fields">
+<a href="#section-8.4.1" class="section-number selfRef">8.4.1. </a><a href="#name-common-message-fields" class="section-name selfRef">Common Message Fields</a>
+          </h4>
+<p id="section-8.4.1-1">The following fields are common to all message payloads other than <code>#info</code>:<a href="#section-8.4.1-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.4.1-2.1">
+              <p id="section-8.4.1-2.1.1"><code>seq</code> (integer, REQUIRED): the sequence number (cursor; see <a href="#cursors" class="auto internal xref">Section 8.3</a>) of this message.<a href="#section-8.4.1-2.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.1-2.2">
+              <p id="section-8.4.1-2.2.1"><code>did</code> (string, REQUIRED): the account identifier of the repository this message concerns. For historical reasons the <code>#commit</code> message uses the field name <code>repo</code> rather than <code>did</code> for this purpose; the value has the same meaning.<a href="#section-8.4.1-2.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.1-2.3">
+              <p id="section-8.4.1-2.3.1"><code>time</code> (string, REQUIRED): an datetime string indicating when the message was emitted. This timestamp is informational and is not authoritative for any verification purpose.<a href="#section-8.4.1-2.3.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-8.4.1-3">The <code>time</code> datetime must indicate the timezone, and must comply with the intersecting requirements of both <span>[<a href="#RFC3339" class="cite xref">RFC3339</a>]</span> and WHATWG HTML datetimes (<span>[<a href="#WHATWG-HTML" class="cite xref">WHATWG-HTML</a>]</span>). For example, <code>2026-10-31T03:16:38.996Z</code>.<a href="#section-8.4.1-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="msg-commit">
+<section id="section-8.4.2">
+          <h4 id="name-commit-message">
+<a href="#section-8.4.2" class="section-number selfRef">8.4.2. </a><a href="#name-commit-message" class="section-name selfRef"><code>#commit</code> Message</a>
+          </h4>
+<p id="section-8.4.2-1">A <code>#commit</code> message represents a repository update, as an atomic set of record operations. The message contains a repository diff combined with supporting metadata.<a href="#section-8.4.2-1" class="pilcrow">¶</a></p>
+<p id="section-8.4.2-2">The payload contains:<a href="#section-8.4.2-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.4.2-3.1">
+              <p id="section-8.4.2-3.1.1"><code>seq</code> (integer, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>.<a href="#section-8.4.2-3.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.2-3.2">
+              <p id="section-8.4.2-3.2.1"><code>repo</code> (string, REQUIRED): the account identifier of the repository (see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>; this is the historical name of the <code>did</code> field). MUST match the <code>did</code> field in the commit object enclosed in <code>blocks</code>.<a href="#section-8.4.2-3.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.2-3.3">
+              <p id="section-8.4.2-3.3.1"><code>time</code> (string, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>.<a href="#section-8.4.2-3.3.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.2-3.4">
+              <p id="section-8.4.2-3.4.1"><code>rev</code> (string, REQUIRED): the new revision identifier of the repository after these modifications. MUST match the <code>rev</code> field in the commit object enclosed in <code>blocks</code>.<a href="#section-8.4.2-3.4.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.2-3.5">
+              <p id="section-8.4.2-3.5.1"><code>since</code> (string, REQUIRED, nullable): the revision identifier of the repository immediately prior to this commit. May be null only for the first commit of a repository.<a href="#section-8.4.2-3.5.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.2-3.6">
+              <p id="section-8.4.2-3.6.1"><code>commit</code> (CID link, REQUIRED): content hash link reference to the new commit object. MUST match the hash of the commit object enclosed in <code>blocks</code>.<a href="#section-8.4.2-3.6.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.2-3.7">
+              <p id="section-8.4.2-3.7.1"><code>blocks</code> (byte string, REQUIRED): the serialized diff (as defined in <a href="#diffs" class="auto internal xref">Section 8.1</a>) carrying all blocks required to invert and verify the operations in this message.<a href="#section-8.4.2-3.7.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.2-3.8">
+              <p id="section-8.4.2-3.8.1"><code>ops</code> (array, REQUIRED): the set of record operations encapsulated by this message. Multiple operations on the same record (path) are not allowed within a commit. Each entry is an object containing:<a href="#section-8.4.2-3.8.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.4.2-3.8.2.1">
+                  <p id="section-8.4.2-3.8.2.1.1"><code>action</code> (string, REQUIRED): one of <code>create</code>, <code>update</code>, or <code>delete</code>.<a href="#section-8.4.2-3.8.2.1.1" class="pilcrow">¶</a></p>
+</li>
+                <li class="normal" id="section-8.4.2-3.8.2.2">
+                  <p id="section-8.4.2-3.8.2.2.1"><code>path</code> (string, REQUIRED): the repository path of the record being mutated.<a href="#section-8.4.2-3.8.2.2.1" class="pilcrow">¶</a></p>
+</li>
+                <li class="normal" id="section-8.4.2-3.8.2.3">
+                  <p id="section-8.4.2-3.8.2.3.1"><code>cid</code> (CID link, REQUIRED, nullable): the content hash link of the new record at this path, or <code>null</code> for <code>delete</code> actions.<a href="#section-8.4.2-3.8.2.3.1" class="pilcrow">¶</a></p>
+</li>
+                <li class="normal" id="section-8.4.2-3.8.2.4">
+                  <p id="section-8.4.2-3.8.2.4.1"><code>prev</code> (CID link, OPTIONAL): the content hash link of the prior record at this path. Present (REQUIRED) for <code>update</code> and <code>delete</code> actions; absent for <code>create</code>.<a href="#section-8.4.2-3.8.2.4.1" class="pilcrow">¶</a></p>
+</li>
+              </ul>
+</li>
+            <li class="normal" id="section-8.4.2-3.9">
+              <p id="section-8.4.2-3.9.1"><code>prevData</code> (CID link, REQUIRED): the root content hash of the repository's MST in the previous revision (the <code>data</code> field in the commit object). Used for operation-inversion validation as described in <a href="#streaming-validation" class="auto internal xref">Section 8.5</a>.<a href="#section-8.4.2-3.9.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.2-3.10">
+              <p id="section-8.4.2-3.10.1"><code>tooBig</code> (boolean, REQUIRED): retained for compatibility with earlier versions of this protocol. Producers MUST emit this field with the value <code>false</code>. Consumers MUST ignore the field's value.<a href="#section-8.4.2-3.10.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.2-3.11">
+              <p id="section-8.4.2-3.11.1"><code>blobs</code> (array, REQUIRED): retained for compatibility with earlier versions of this protocol. Producers MUST emit this field as an empty array. Consumers MUST ignore the field's contents.<a href="#section-8.4.2-3.11.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-8.4.2-4">A <code>#commit</code> message MUST contain no more than 200 entries in <code>ops</code>. The <code>blocks</code> field MUST NOT exceed 2 MiB. Any single record block within <code>blocks</code> MUST NOT exceed 1 MiB. Repository updates exceeding these limits MUST be communicated through a <code>#sync</code> message instead.<a href="#section-8.4.2-4" class="pilcrow">¶</a></p>
+<p id="section-8.4.2-5">A <code>#commit</code> message with an empty <code>ops</code> array (e.g., a commit issued solely to advance <code>rev</code> after a key rotation) is valid.<a href="#section-8.4.2-5" class="pilcrow">¶</a></p>
+<p id="section-8.4.2-6">Note that the full message is <em>not</em> cryptographically authenticated end-to-end (from the origin account itself). Only the commit object contained within the <code>blocks</code> field is signed, with other blocks covered by proof chains. The <code>ops</code> array is <em>not</em> authenticated and must be verified via operation inversion.<a href="#section-8.4.2-6" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="msg-sync">
+<section id="section-8.4.3">
+          <h4 id="name-sync-message">
+<a href="#section-8.4.3" class="section-number selfRef">8.4.3. </a><a href="#name-sync-message" class="section-name selfRef"><code>#sync</code> Message</a>
+          </h4>
+<p id="section-8.4.3-1">A <code>#sync</code> message declares the current state of a repository, regardless of the previous state. Sync messages are emitted when commit-message continuity cannot be maintained: large mutations exceeding the limits in <a href="#msg-commit" class="auto internal xref">Section 8.4.2</a>, recovery from data loss or corruption, or account migration between hosting providers.<a href="#section-8.4.3-1" class="pilcrow">¶</a></p>
+<p id="section-8.4.3-2">The payload contains:<a href="#section-8.4.3-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.4.3-3.1">
+              <p id="section-8.4.3-3.1.1"><code>seq</code> (integer, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>.<a href="#section-8.4.3-3.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.3-3.2">
+              <p id="section-8.4.3-3.2.1"><code>did</code> (string, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>. MUST match the <code>did</code> field in the commit object encapsulated in <code>blocks</code>.<a href="#section-8.4.3-3.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.3-3.3">
+              <p id="section-8.4.3-3.3.1"><code>time</code> (string, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>.<a href="#section-8.4.3-3.3.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.3-3.4">
+              <p id="section-8.4.3-3.4.1"><code>rev</code> (string, REQUIRED): the current revision identifier of the repository. MUST match the <code>rev</code> field in the commit object encapsulated in <code>blocks</code>.<a href="#section-8.4.3-3.4.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.3-3.5">
+              <p id="section-8.4.3-3.5.1"><code>blocks</code> (byte string, REQUIRED): a serialized stream containing only the current commit object. Receivers reconstruct full repository state by fetching the complete repository as described in <a href="#resync" class="auto internal xref">Section 8.6</a>.<a href="#section-8.4.3-3.5.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-8.4.3-4">A <code>#sync</code> message with a <code>rev</code> which is lower than or equal to the previously tracked revision for an account would constitute a "rollback" and should be ignored. The commit object signature (within the <code>blocks</code> field) must be verified, and the message rejected if validation fails.<a href="#section-8.4.3-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="msg-account">
+<section id="section-8.4.4">
+          <h4 id="name-account-messages">
+<a href="#section-8.4.4" class="section-number selfRef">8.4.4. </a><a href="#name-account-messages" class="section-name selfRef"><code>#account</code> Messages</a>
+          </h4>
+<p id="section-8.4.4-1">An <code>#account</code> message indicates a change in hosting status for a specific account. See <a href="#account-status" class="auto internal xref">Section 6.1</a> for details and semantics.<a href="#section-8.4.4-1" class="pilcrow">¶</a></p>
+<p id="section-8.4.4-2">The payload contains:<a href="#section-8.4.4-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.4.4-3.1">
+              <p id="section-8.4.4-3.1.1"><code>seq</code> (integer, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>.<a href="#section-8.4.4-3.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.4-3.2">
+              <p id="section-8.4.4-3.2.1"><code>did</code> (string, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>.<a href="#section-8.4.4-3.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.4-3.3">
+              <p id="section-8.4.4-3.3.1"><code>time</code> (string, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>.<a href="#section-8.4.4-3.3.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.4-3.4">
+              <p id="section-8.4.4-3.4.1"><code>active</code> (boolean, REQUIRED): whether the account is currently active on the emitting service.<a href="#section-8.4.4-3.4.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.4-3.5">
+              <p id="section-8.4.4-3.5.1"><code>status</code> (string, OPTIONAL): a short status code describing the account state.<a href="#section-8.4.4-3.5.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-8.4.4-4">Note that account messages are <em>not</em> cryptographically authenticated end-to-end, and that they have hop-by-hop semantics.<a href="#section-8.4.4-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="msg-identity">
+<section id="section-8.4.5">
+          <h4 id="name-identity-message">
+<a href="#section-8.4.5" class="section-number selfRef">8.4.5. </a><a href="#name-identity-message" class="section-name selfRef"><code>#identity</code> Message</a>
+          </h4>
+<p id="section-8.4.5-1">An <code>#identity</code> message indicates a possible change to the resolution result of an account identifier.<a href="#section-8.4.5-1" class="pilcrow">¶</a></p>
+<p id="section-8.4.5-2">Note that identity messages are <em>not</em> cryptographically authenticated end-to-end. Consumers SHOULD invalidate any cached identity metadata for the named account on receipt of this message, and then re-resolve the identifier.<a href="#section-8.4.5-2" class="pilcrow">¶</a></p>
+<p id="section-8.4.5-3">The payload contains:<a href="#section-8.4.5-3" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.4.5-4.1">
+              <p id="section-8.4.5-4.1.1"><code>seq</code> (integer, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>.<a href="#section-8.4.5-4.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.5-4.2">
+              <p id="section-8.4.5-4.2.1"><code>did</code> (string, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>.<a href="#section-8.4.5-4.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.5-4.3">
+              <p id="section-8.4.5-4.3.1"><code>time</code> (string, REQUIRED): see <a href="#msg-common" class="auto internal xref">Section 8.4.1</a>.<a href="#section-8.4.5-4.3.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.5-4.4">
+              <p id="section-8.4.5-4.4.1"><code>handle</code> (string, OPTIONAL): included for historical reasons. Non-authoritative.<a href="#section-8.4.5-4.4.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-8.4.5-5"><code>#identity</code> messages are best-effort: producers MAY emit them redundantly when no underlying change has occurred, and MAY fail to emit them when a change has occurred. Consumers SHOULD NOT rely on <code>#identity</code> messages as the sole signal of identity change.<a href="#section-8.4.5-5" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="msg-info">
+<section id="section-8.4.6">
+          <h4 id="name-info-message">
+<a href="#section-8.4.6" class="section-number selfRef">8.4.6. </a><a href="#name-info-message" class="section-name selfRef"><code>#info</code> Message</a>
+          </h4>
+<p id="section-8.4.6-1">An <code>#info</code> message is used to communicate context about the current event stream. It is not sequenced (contains no <code>seq</code> field).<a href="#section-8.4.6-1" class="pilcrow">¶</a></p>
+<p id="section-8.4.6-2">The payload contains:<a href="#section-8.4.6-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.4.6-3.1">
+              <p id="section-8.4.6-3.1.1"><code>name</code> (string, REQUIRED): a single-word informational message type<a href="#section-8.4.6-3.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.6-3.2">
+              <p id="section-8.4.6-3.2.1"><code>message</code> (string, OPTIONAL): longer description<a href="#section-8.4.6-3.2.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+</section>
+</div>
+</section>
+</div>
+<div id="streaming-validation">
+<section id="section-8.5">
+        <h3 id="name-commit-validation">
+<a href="#section-8.5" class="section-number selfRef">8.5. </a><a href="#name-commit-validation" class="section-name selfRef">Commit Validation</a>
+        </h3>
+<p id="section-8.5-1">Validating a <code>#commit</code> message establishes both that the message is internally consistent (its declared operations match the diff it carries) and that it matches the prior state of the account's repository from the perspective of the consumer.<a href="#section-8.5-1" class="pilcrow">¶</a></p>
+<p id="section-8.5-2">For each <code>#commit</code> message received, consumers MUST perform the following steps:<a href="#section-8.5-2" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-8.5-3">
+<li id="section-8.5-3.1">
+            <p id="section-8.5-3.1.1">Verify wire-level fields: that the frame parses as deterministic CBOR, that the payload satisfies the schema in <a href="#msg-commit" class="auto internal xref">Section 8.4.2</a>, and that the size limits in <a href="#msg-commit" class="auto internal xref">Section 8.4.2</a> are not exceeded. Otherwise the message MUST be rejected.<a href="#section-8.5-3.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-8.5-3.2">
+            <p id="section-8.5-3.2.1">Parse the repository diff from <code>blocks</code>, verifying the deterministic CBOR encoding, schema, and syntax of all fields of the commit and MST nodes. All created and updated record blocks must be present, but the content and internal structure of records are not validated at this stage. If the repository diff is invalid, the message MUST be rejected.<a href="#section-8.5-3.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-8.5-3.3">
+            <p id="section-8.5-3.3.1">Apply operation inversion to the repository diff MST using the <code>ops</code> array, and match against the message's claimed <code>prevData</code>, as per <a href="#operation-inversion" class="auto internal xref">Section 8.1.2</a>. If inversion fails, the message MUST be rejected.<a href="#section-8.5-3.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-8.5-3.4">
+            <p id="section-8.5-3.4.1">Verify the commit signature using the signing key resolved from the account identifier. If the signature is invalid, the message MUST be rejected.<a href="#section-8.5-3.4.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-8.5-3.5">
+            <p id="section-8.5-3.5.1">Confirm that the message's <code>rev</code> is strictly greater than the previously observed <code>rev</code> for this account. Otherwise the message MUST be ignored.<a href="#section-8.5-3.5.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-8.5-3.6">
+            <p id="section-8.5-3.6.1">Cross-check the message's <code>prevData</code> field against the consumer's previously seen <code>data</code> for this account. If they differ, the consumer has become desynchronized for this account and MUST initiate re-synchronization as defined in <a href="#resync" class="auto internal xref">Section 8.6</a>.<a href="#section-8.5-3.6.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+<p id="section-8.5-4">A signature failure at step 4 might indicate a recent key rotation rather than a malicious commit. Consumers SHOULD refresh the cached identity for the account and retry verification before rejecting the message.<a href="#section-8.5-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="resync">
+<section id="section-8.6">
+        <h3 id="name-re-synchronization">
+<a href="#section-8.6" class="section-number selfRef">8.6. </a><a href="#name-re-synchronization" class="section-name selfRef">Re-synchronization</a>
+        </h3>
+<p id="section-8.6-1">When a consumer detects desynchronization, either through a discontinuity in commit history or a <code>#sync</code> message that does not match its local state, it must perform a complete re-synchronization process to restore consistency with the current repository state.<a href="#section-8.6-1" class="pilcrow">¶</a></p>
+<p id="section-8.6-2">Re-synchronization requires fetching and processing the full repository structure, though the record contents themselves are optional depending on the consumer's needs. If the repository data is delivered in pre-order traversal, it can be validated incrementally as it is received.<a href="#section-8.6-2" class="pilcrow">¶</a></p>
+<p id="section-8.6-3">Parsing the repository structure produces a mapping of keys (repository paths) to record versions (hashes) that represents the complete repository state. This key-to-hash mapping can be compared against existing local state to identify discrepancies and re-establish synchronization. Once validated, this mapping establishes the new repository state against which future commit messages can be applied.<a href="#section-8.6-3" class="pilcrow">¶</a></p>
+<p id="section-8.6-4">Consumers SHOULD prefer requesting full repository data from their direct upstream rather than the resolved canonical host for the repository. Direct upstreams MAY coalesce and cache snapshot requests, or redirect consumers to alternative sources where appropriate. This reduces correlated load spikes on canonical hosts caused multiple consumers re-synchronizing at once when a <code>#sync</code> message is broadcast.<a href="#section-8.6-4" class="pilcrow">¶</a></p>
+<p id="section-8.6-5">During the re-synchronization process, any incoming commit messages for the repository should be buffered rather than processed immediately. Once re-synchronization completes successfully, these buffered commits can be validated and applied in sequence to bring the consumer fully up to date with the current repository state.<a href="#section-8.6-5" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="blob">
+<section id="section-9">
+      <h2 id="name-media-blobs">
+<a href="#section-9" class="section-number selfRef">9. </a><a href="#name-media-blobs" class="section-name selfRef">Media Blobs</a>
+      </h2>
+<p id="section-9-1">Larger binary media files, such as images or video, are not serialized inside repositories or synchronized over the stream mechanism. Instead, they are stored as "blobs" by the account's host, and referenced using a strong hash (CID). The blob file can be fetched out-of-band by any party, and the hash can be used to verify its integrity.<a href="#section-9-1" class="pilcrow">¶</a></p>
+<p id="section-9-2">Blob hosting and lifecycle is tied to a specific account. When an account first creates a new blob, the host places it in temporary storage where it is not publicly available to the network. If the account then creates a record which includes a valid reference to the blob, then the blob becomes accessible to the network. Multiple records for the same account can reference the same blob. If all references to the blob are removed, the blob becomes inaccessible and may be deleted. A blob left lingering in temporary storage may expire and be deleted.<a href="#section-9-2" class="pilcrow">¶</a></p>
+<p id="section-9-3">The hosting and access lifecycle of blobs matches that of the account's public repository data, as described in <a href="#account-status" class="auto internal xref">Section 6.1</a>. Blob data should not be served or redistributed for accounts with inactive hosting status.<a href="#section-9-3" class="pilcrow">¶</a></p>
+<p id="section-9-4">The details of the account host HTTP upload and fetch endpoints, including the URL path and query parameters, are not specified by this document.<a href="#section-9-4" class="pilcrow">¶</a></p>
+<p id="section-9-5">Applications SHOULD NOT rely on account hosts to distribute blobs directly to broad audiences. Applications are expected to bear the resource costs of mass distribution themselves, for example using a caching HTTP proxy or Content Delivery Network (CDN).<a href="#section-9-5" class="pilcrow">¶</a></p>
+<div id="blob-refs">
+<section id="section-9.1">
+        <h3 id="name-blob-references">
+<a href="#section-9.1" class="section-number selfRef">9.1. </a><a href="#name-blob-references" class="section-name selfRef">Blob References</a>
+        </h3>
+<p id="section-9.1-1">References to a blob are encoded as a special object within records. The object has a <code>$type</code> field with value <code>blob</code>, and a fixed set of fields. This pattern can be parsed and extracted from record data of any type. The account identifier is inferred from the repository containing the record and is not included in the reference itself.<a href="#section-9.1-1" class="pilcrow">¶</a></p>
+<p id="section-9.1-2">The reference object contains the following fields:<a href="#section-9.1-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-9.1-3.1">
+            <p id="section-9.1-3.1.1"><strong><code>$type</code></strong> (string, required): Has the fixed value <code>blob</code><a href="#section-9.1-3.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-9.1-3.2">
+            <p id="section-9.1-3.2.1"><strong><code>ref</code></strong> (CID link, required): Hash of the blob file. Uses the raw/arbitrary prefix as described in <a href="#cid-link" class="auto internal xref">Appendix A.1</a>.<a href="#section-9.1-3.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-9.1-3.3">
+            <p id="section-9.1-3.3.1"><strong><code>mimeType</code></strong> (string, required): Content type of the blob. MUST NOT be an empty string. Use <code>application/octet-stream</code> if content type is not known.<a href="#section-9.1-3.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-9.1-3.4">
+            <p id="section-9.1-3.4.1"><strong><code>size</code></strong> (integer, required): Size of the blob in bytes. MUST be non-zero and positive.<a href="#section-9.1-3.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-9.1-4">A blob object containing any additional fields MUST be rejected.<a href="#section-9.1-4" class="pilcrow">¶</a></p>
+<p id="section-9.1-5">An example blob reference in JSON encoding:<a href="#section-9.1-5" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="section-9.1-6">
+<pre>
+{
+  "$type": "blob",
+  "ref": {
+    "$link": "bafkreid4hcizz4ckszgnxn6gw7at2v2y3s4sweiucvfeuhyl5pxuilu5ee"
+  },
+  "mimeType": "application/octet-stream",
+  "size": 837446
+}
+</pre><a href="#section-9.1-6" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+</section>
+</div>
+<div id="privacy">
+<section id="section-10">
+      <h2 id="name-privacy-considerations">
+<a href="#section-10" class="section-number selfRef">10. </a><a href="#name-privacy-considerations" class="section-name selfRef">Privacy Considerations</a>
+      </h2>
+<p id="section-10-1">This protocol is designed for global public broadcast of authenticated data. It is relatively easy for any party to maintain a complete archive of all network data, including data which was subsequently deleted by the author after the archiving started. Public data is effectively non-repudiable, though this property does not hold if signing keys are leaked or published. It is important that all network participants (and especially end users) are informed and understand this trade-off.<a href="#section-10-1" class="pilcrow">¶</a></p>
+<p id="section-10-2">An intentional feature of this protocol is that accounts can be reused for multiple application types and use cases. In some situations this cross-application linkage may be unwanted or unintentional.<a href="#section-10-2" class="pilcrow">¶</a></p>
+<p id="section-10-3">The ability to redistribute data gives readers more choice when fetching data, while preserving authenticity. This can in theory reduce concentration of surveillance and improve reader privacy. When authenticating data, Care must be taken that account identifier resolution does not reveal reader behavior. Details depend on individual account identifier systems, which are out of scope for this document.<a href="#section-10-3" class="pilcrow">¶</a></p>
+<div id="privacy-deleted">
+<section id="section-10.1">
+        <h3 id="name-deleted-data">
+<a href="#section-10.1" class="section-number selfRef">10.1. </a><a href="#name-deleted-data" class="section-name selfRef">Deleted Data</a>
+        </h3>
+<p id="section-10.1-1">The protocol provides mechanisms to broadcast both content deletion and account deletion, and the strong expectation ("MUST") is for synchronizing services to stop distributing deleted data. But there is no way to ensure that all network participants have complied.<a href="#section-10.1-1" class="pilcrow">¶</a></p>
+<p id="section-10.1-2">Sync streams may include deleted data in their "backfill window" of messages. This is allowed as an implementation choice. Backfill time windows should not have unbounded duration. See <a href="#stream-sync" class="auto internal xref">Section 8</a> for a recommended duration.<a href="#section-10.1-2" class="pilcrow">¶</a></p>
+<p id="section-10.1-3">Content hash links between records can leave traces after data records are deleted.<a href="#section-10.1-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="privacy-author">
+<section id="section-10.2">
+        <h3 id="name-author-privacy">
+<a href="#section-10.2" class="section-number selfRef">10.2. </a><a href="#name-author-privacy" class="section-name selfRef">Author Privacy</a>
+        </h3>
+<p id="section-10.2-1">This protocol is designed to support pseudonymous publication and consumption of public data records. Accounts which choose to do so should be able to fully participate in the network without being linked to an offline identity. The protocol can not guarantee pseudonymity, and maintaining this property requires care by account holders.<a href="#section-10.2-1" class="pilcrow">¶</a></p>
+<p id="section-10.2-2">Time correlation from public metadata can leak information about account holders. Timestamp identifiers (TIDs) record event timestamps in repository commit revisions and in record keys. Event stream messages also include timestamps. Application-specific record types may also include timestamps.<a href="#section-10.2-2" class="pilcrow">¶</a></p>
+<p id="section-10.2-3">Media file blobs may include identifying metadata, such as EXIF geolocation metadata included in JPEG image files. Application software should take care to prevent accidental metadata publication by rejecting or redacting such metadata by default.<a href="#section-10.2-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="security">
+<section id="section-11">
+      <h2 id="name-security-considerations">
+<a href="#section-11" class="section-number selfRef">11. </a><a href="#name-security-considerations" class="section-name selfRef">Security Considerations</a>
+      </h2>
+<div id="security-data">
+<section id="section-11.1">
+        <h3 id="name-untrusted-data">
+<a href="#section-11.1" class="section-number selfRef">11.1. </a><a href="#name-untrusted-data" class="section-name selfRef">Untrusted Data</a>
+        </h3>
+<p id="section-11.1-1">Repositories constitute untrusted input, as account holders have complete control over repository contents and repository hosts control binary encoding. Implementations must handle potential denial-of-service vectors from both malicious actors and accidental conditions such as corrupted data or implementation bugs.<a href="#section-11.1-1" class="pilcrow">¶</a></p>
+<p id="section-11.1-2">Generic precautions must be followed when processing CBOR data, including enforcement of maximum serialized object size, maximum recursion depth for nested structures, and memory budget limits for deserialized data. While some CBOR implementations include these protections by default, implementations should verify and configure appropriate limits regardless of library defaults.<a href="#section-11.1-2" class="pilcrow">¶</a></p>
+<p id="section-11.1-3">Content-addressed container formats are vulnerable to expansion attacks, where a single data block or sub-tree of nodes is referenced many times. This can result in a relatively small serialized repository unpacking in to a much larger amount of memory, resulting in memory exhaustion. This can be mitigated by requiring referenced blocks to appear multiple times (as the repository serialization format does), and for consumers to verify this requirement when reading files.<a href="#section-11.1-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="security-hosts">
+<section id="section-11.2">
+        <h3 id="name-untrusted-hosts">
+<a href="#section-11.2" class="section-number selfRef">11.2. </a><a href="#name-untrusted-hosts" class="section-name selfRef">Untrusted Hosts</a>
+        </h3>
+<p id="section-11.2-1">Several aspects of synchronization involve following URLs or host endpoints derived from untrusted input: account-identifier resolution, retrieval of full repository data from a hosting service, and following redirects between hosts. Network clients should take generic precautions with HTTP and WebSocket requests, including response header and body size limits and timeouts.<a href="#section-11.2-1" class="pilcrow">¶</a></p>
+<p id="section-11.2-2">Consumers MUST validate URLs derived from untrusted input before issuing requests, including any URLs reached via HTTP redirects. To address Server-Side Request Forgery (SSRF) attacks, requests to internal-network addresses, loopback addresses, and link-local addresses MUST be rejected unless explicitly permitted by configuration.<a href="#section-11.2-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="security-mst">
+<section id="section-11.3">
+        <h3 id="name-mst-structure-attacks">
+<a href="#section-11.3" class="section-number selfRef">11.3. </a><a href="#name-mst-structure-attacks" class="section-name selfRef">MST Structure Attacks</a>
+        </h3>
+<p id="section-11.3-1">The efficiency of MST data structures depends on a uniform distribution of key hashes. Since account holders control record keys, they can perform key mining to generate sets of keys with specific layer assignments and sorting characteristics, resulting in inefficient tree structures. Such attacks can cause excessive storage overhead and network amplification during repository transmission.<a href="#section-11.3-1" class="pilcrow">¶</a></p>
+<p id="section-11.3-2">To mitigate these attacks, implementations should:<a href="#section-11.3-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-11.3-3.1">
+            <p id="section-11.3-3.1.1">Limit the number of entries per MST node to a statistically reasonable maximum<a href="#section-11.3-3.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-11.3-3.2">
+            <p id="section-11.3-3.2.1">Impose limits on overall repository height<a href="#section-11.3-3.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-11.3-3.3">
+            <p id="section-11.3-3.3.1">Monitor and restrict other structural parameters that could be exploited through sophisticated key mining<a href="#section-11.3-3.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+</section>
+</div>
+<div id="security-import">
+<section id="section-11.4">
+        <h3 id="name-repository-import-validatio">
+<a href="#section-11.4" class="section-number selfRef">11.4. </a><a href="#name-repository-import-validatio" class="section-name selfRef">Repository Import Validation</a>
+        </h3>
+<p id="section-11.4-1">When importing repositories, implementations should verify the completeness and integrity of the repository structure. Serialized repositories may contain additional unrelated blocks beyond those required for the repository structure. Care should be taken during storage to avoid resource waste on unreferenced blocks and to prevent potential storage exhaustion attacks.<a href="#section-11.4-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="security-resources">
+<section id="section-11.5">
+        <h3 id="name-resource-abuse">
+<a href="#section-11.5" class="section-number selfRef">11.5. </a><a href="#name-resource-abuse" class="section-name selfRef">Resource Abuse</a>
+        </h3>
+<p id="section-11.5-1">A producer that routinely emits <code>#sync</code> messages could cause consumers to repeatedly fetch full repository snapshots, which is substantially more expensive than processing <code>#commit</code> messages. Similarly, a producer that rapidly updates the same key or issues many small commits can amplify message volume and bandwidth costs on downstream consumers. Consumers should apply rate limits and bandwidth budgets per repository, and may disconnect or deprioritize producers whose message patterns appear abusive.<a href="#section-11.5-1" class="pilcrow">¶</a></p>
+<p id="section-11.5-2">A single <code>#sync</code> message can result in consumers re-synchronizing an entire repository. Synchronizing services should ensure that record operation rate limits are not bypassed.<a href="#section-11.5-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="security-rewinds">
+<section id="section-11.6">
+        <h3 id="name-repository-rewinds">
+<a href="#section-11.6" class="section-number selfRef">11.6. </a><a href="#name-repository-rewinds" class="section-name selfRef">Repository Rewinds</a>
+        </h3>
+<p id="section-11.6-1">Intermediaries that relay firehose messages can present a consumer with an outdated view of a repository by replaying older commits or declining to forward newer ones. The <code>rev</code> field on each commit can help consumers detect this: a received commit whose <code>rev</code> is not greater than the most recently observed <code>rev</code> for that repository may indicate that the producer is serving a rewound view. In situations such as this, consumers can cross-check the latest observed <code>rev</code> against the canonical host for the repository.<a href="#section-11.6-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="security-validation-responsibility">
+<section id="section-11.7">
+        <h3 id="name-validation-responsibility">
+<a href="#section-11.7" class="section-number selfRef">11.7. </a><a href="#name-validation-responsibility" class="section-name selfRef">Validation Responsibility</a>
+        </h3>
+<p id="section-11.7-1">Consumers are responsible for verifying the integrity and authenticity of repository data from the network.<a href="#section-11.7-1" class="pilcrow">¶</a></p>
+<p id="section-11.7-2">Intermediaries that relay messages MAY apply some validation checks (for example, signature verification or size enforcement) before relaying. Consumers MUST NOT treat upstream relaying as evidence of validity: every consumer is ultimately responsible for performing the verification rules in <a href="#streaming-validation" class="auto internal xref">Section 8.5</a> on each message it processes.<a href="#section-11.7-2" class="pilcrow">¶</a></p>
+<p id="section-11.7-3">Clients are responsible for verifying the integrity of blobs they fetch from the network (content hash and size), and for verifying the media type declared in the blob metadata.<a href="#section-11.7-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="security-blobs">
+<section id="section-11.8">
+        <h3 id="name-blob-hosting">
+<a href="#section-11.8" class="section-number selfRef">11.8. </a><a href="#name-blob-hosting" class="section-name selfRef">Blob Hosting</a>
+        </h3>
+<p id="section-11.8-1">Serving arbitrary user-uploaded files (media blobs) from a web server raises several web content security issues, including cross-site scripting (XSS) of scripts or SVG content from the same web origin as authenticated web pages. Hosts SHOULD enable a strict Content Security Policy when serving blobs. Hosts MAY use the generic <code>application/octet-stream</code> content type header when serving blobs. Applications SHOULD serve media blobs from their own origin (proxy, CDN, etc.) instead of directly linking to the canonical account host.<a href="#section-11.8-1" class="pilcrow">¶</a></p>
+<p id="section-11.8-2">Processing untrusted binary media files is a common source of security exploits. Care should be taken when detecting content types or transforming media formats.<a href="#section-11.8-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="iana-considerations">
+<section id="section-12">
+      <h2 id="name-iana-considerations">
+<a href="#section-12" class="section-number selfRef">12. </a><a href="#name-iana-considerations" class="section-name selfRef">IANA Considerations</a>
+      </h2>
+<p id="section-12-1">This document has no IANA actions.<a href="#section-12-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="sec-combined-references">
+<section id="section-13">
+      <h2 id="name-references">
+<a href="#section-13" class="section-number selfRef">13. </a><a href="#name-references" class="section-name selfRef">References</a>
+      </h2>
+<div id="sec-normative-references">
+<section id="section-13.1">
+        <h3 id="name-normative-references">
+<a href="#section-13.1" class="section-number selfRef">13.1. </a><a href="#name-normative-references" class="section-name selfRef">Normative References</a>
+        </h3>
+<dl class="references">
+<dt id="RFC3339">[RFC3339]</dt>
+        <dd>
+<span class="refAuthor">Klyne, G.</span> and <span class="refAuthor">C. Newman</span>, <span class="refTitle">"Date and Time on the Internet: Timestamps"</span>, <span class="seriesInfo">RFC 3339</span>, <span class="seriesInfo">DOI 10.17487/RFC3339</span>, <time datetime="2002-07" class="refDate">July 2002</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc3339">https://www.rfc-editor.org/rfc/rfc3339</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC3986">[RFC3986]</dt>
+        <dd>
+<span class="refAuthor">Berners-Lee, T.</span>, <span class="refAuthor">Fielding, R.</span>, and <span class="refAuthor">L. Masinter</span>, <span class="refTitle">"Uniform Resource Identifier (URI): Generic Syntax"</span>, <span class="seriesInfo">STD 66</span>, <span class="seriesInfo">RFC 3986</span>, <span class="seriesInfo">DOI 10.17487/RFC3986</span>, <time datetime="2005-01" class="refDate">January 2005</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc3986">https://www.rfc-editor.org/rfc/rfc3986</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC4648">[RFC4648]</dt>
+        <dd>
+<span class="refAuthor">Josefsson, S.</span>, <span class="refTitle">"The Base16, Base32, and Base64 Data Encodings"</span>, <span class="seriesInfo">RFC 4648</span>, <span class="seriesInfo">DOI 10.17487/RFC4648</span>, <time datetime="2006-10" class="refDate">October 2006</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc4648">https://www.rfc-editor.org/rfc/rfc4648</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC6455">[RFC6455]</dt>
+        <dd>
+<span class="refAuthor">Fette, I.</span> and <span class="refAuthor">A. Melnikov</span>, <span class="refTitle">"The WebSocket Protocol"</span>, <span class="seriesInfo">RFC 6455</span>, <span class="seriesInfo">DOI 10.17487/RFC6455</span>, <time datetime="2011-12" class="refDate">December 2011</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc6455">https://www.rfc-editor.org/rfc/rfc6455</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC8949">[RFC8949]</dt>
+        <dd>
+<span class="refAuthor">Bormann, C.</span> and <span class="refAuthor">P. Hoffman</span>, <span class="refTitle">"Concise Binary Object Representation (CBOR)"</span>, <span class="seriesInfo">STD 94</span>, <span class="seriesInfo">RFC 8949</span>, <span class="seriesInfo">DOI 10.17487/RFC8949</span>, <time datetime="2020-12" class="refDate">December 2020</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc8949">https://www.rfc-editor.org/rfc/rfc8949</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="SEC2">[SEC2]</dt>
+        <dd>
+<span class="refAuthor">Standards for Efficient Cryptography Group</span>, <span class="refTitle">"SEC 2: Recommended Elliptic Curve Domain Parameters"</span>, <time datetime="2010-01" class="refDate">January 2010</time>, <span>&lt;<a href="https://www.secg.org/sec2-v2.pdf">https://www.secg.org/sec2-v2.pdf</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="WEBASSEMBLY">[WEBASSEMBLY]</dt>
+        <dd>
+<span class="refAuthor">Rossberg, A.</span>, <span class="refTitle">"WebAssembly Core Specification"</span>, <time datetime="2026-03" class="refDate">March 2026</time>, <span>&lt;<a href="https://www.w3.org/TR/wasm-core-2">https://www.w3.org/TR/wasm-core-2</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="WHATWG-HTML">[WHATWG-HTML]</dt>
+      <dd>
+<span class="refAuthor">Web Hypertext Application Technology Working Group</span>, <span class="refTitle">"HTML Living Standard"</span>, <time datetime="2026-10" class="refDate">October 2026</time>, <span>&lt;<a href="https://html.spec.whatwg.org/">https://html.spec.whatwg.org/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+</dl>
+</section>
+</div>
+<div id="sec-informative-references">
+<section id="section-13.2">
+        <h3 id="name-informative-references">
+<a href="#section-13.2" class="section-number selfRef">13.2. </a><a href="#name-informative-references" class="section-name selfRef">Informative References</a>
+        </h3>
+<dl class="references">
+<dt id="AT-ARCH">[AT-ARCH]</dt>
+        <dd>
+<span class="refAuthor">Newbold, B.</span> and <span class="refAuthor">D. Holmgren</span>, <span class="refTitle">"Authenticated Transfer: Architecture Overview"</span>, <time datetime="2026-03" class="refDate">March 2026</time>, <span>&lt;<a href="https://datatracker.ietf.org/doc/draft-newbold-at-architecture/">https://datatracker.ietf.org/doc/draft-newbold-at-architecture/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="DASL-CAR">[DASL-CAR]</dt>
+        <dd>
+<span class="refTitle">"DASL: Content Addressable aRchives (CAR)"</span>, <span>n.d.</span>, <span>&lt;<a href="https://dasl.ing/car.html">https://dasl.ing/car.html</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="DRISL">[DRISL]</dt>
+        <dd>
+<span class="refTitle">"DRISL — Deterministic Representation for Interoperable Structures &amp; Links"</span>, <span>n.d.</span>, <span>&lt;<a href="https://dasl.ing/drisl.html">https://dasl.ing/drisl.html</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="MSTPAPER">[MSTPAPER]</dt>
+        <dd>
+<span class="refAuthor">Auvolat, A.</span> and <span class="refAuthor">F. Taïani</span>, <span class="refTitle">"Merkle Search Trees: Efficient State-Based CRDTs in Open Networks"</span>, <time datetime="2019-10" class="refDate">October 2019</time>, <span>&lt;<a href="https://inria.hal.science/hal-02303490/document">https://inria.hal.science/hal-02303490/document</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC7049">[RFC7049]</dt>
+      <dd>
+<span class="refAuthor">Bormann, C.</span> and <span class="refAuthor">P. Hoffman</span>, <span class="refTitle">"Concise Binary Object Representation (CBOR)"</span>, <span class="seriesInfo">RFC 7049</span>, <span class="seriesInfo">DOI 10.17487/RFC7049</span>, <time datetime="2013-10" class="refDate">October 2013</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc7049">https://www.rfc-editor.org/rfc/rfc7049</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+</dl>
+</section>
+</div>
+</section>
+</div>
+<div id="data-model">
+<section id="appendix-A">
+      <h2 id="name-data-model">
+<a href="#appendix-A" class="section-number selfRef">Appendix A. </a><a href="#name-data-model" class="section-name selfRef">Data Model</a>
+      </h2>
+<p id="appendix-A-1">All components of the repository data structure conform to a limited data model and defined encoding rules. CBOR encoding (following the rules in <a href="#cbor-encoding" class="auto internal xref">Appendix A.2</a>) is used for consistent hashing of data. A JSON encoding is also defined for record data, with lossless mapping between the CBOR and JSON encodings.<a href="#appendix-A-1" class="pilcrow">¶</a></p>
+<p id="appendix-A-2">The data model includes the following types:<a href="#appendix-A-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="appendix-A-3.1">
+          <p id="appendix-A-3.1.1"><strong>null values</strong>: represented as 'null' in JSON, and the null special value (major 7) in CBOR<a href="#appendix-A-3.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-A-3.2">
+          <p id="appendix-A-3.2.1"><strong>boolean values</strong>: represented as 'true' / 'false' in JSON, and special values (major 7) in CBOR<a href="#appendix-A-3.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-A-3.3">
+          <p id="appendix-A-3.3.1"><strong>integer values</strong>: with signed 64-bit precision. Represented as numbers in JSON, and Integers (majors 0,1) in CBOR<a href="#appendix-A-3.3.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-A-3.4">
+          <p id="appendix-A-3.4.1"><strong>string values</strong>: represented as strings in JSON, and UTF-8 Strings (major 3) in CBOR<a href="#appendix-A-3.4.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-A-3.5">
+          <p id="appendix-A-3.5.1"><strong>byte string values</strong>: represented with a special object type in JSON (see <a href="#json-encoding" class="auto internal xref">Appendix A.3</a>) and as a Byte String (major 2) in CBOR<a href="#appendix-A-3.5.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-A-3.6">
+          <p id="appendix-A-3.6.1"><strong>content hash links</strong>: as described in <a href="#cid-link" class="auto internal xref">Appendix A.1</a>, represented as a special object type in JSON, and as a tag 42 byte string in CBOR<a href="#appendix-A-3.6.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-A-3.7">
+          <p id="appendix-A-3.7.1"><strong>arrays</strong>: represented as arrays in JSON, and Arrays (major 4) in CBOR<a href="#appendix-A-3.7.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-A-3.8">
+          <p id="appendix-A-3.8.1"><strong>objects</strong>: represented as objects in JSON, and Maps (major 5) in CBOR. Object keys must always be strings.<a href="#appendix-A-3.8.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="appendix-A-4">As a best practice to ensure compatibility with programming languages that represent all numbers in floating point by default, integer values should be limited to 53 bits of precision when possible.<a href="#appendix-A-4" class="pilcrow">¶</a></p>
+<div id="cid-link">
+<section id="appendix-A.1">
+        <h3 id="name-content-identifier-cid-hash">
+<a href="#appendix-A.1" class="section-number selfRef">A.1. </a><a href="#name-content-identifier-cid-hash" class="section-name selfRef">Content Identifier (CID) Hashes</a>
+        </h3>
+<p id="appendix-A.1-1">References to data objects by hash occur throughout the repository data structure. They also occur between records at the application layer. A consistent way of computing and encoding these content hash links, named Content Identifier (CID), is described here. In addition to "CID Links" between objects, it is possible to represent CIDs as regular hash strings (without the "link" data model semantics). It is also possible to represent the hash of arbitrary binary data as a CID.<a href="#appendix-A.1-1" class="pilcrow">¶</a></p>
+<p id="appendix-A.1-2">Data objects to be referenced are first encoded as CBOR. The encoded bytes are hashed using SHA-256, resulting in a 32-byte binary hash value. The hash bytes are prefixed with the 4-byte prefix value <code>0x01711220</code>, resulting in a 36-byte binary CID.<a href="#appendix-A.1-2" class="pilcrow">¶</a></p>
+<p id="appendix-A.1-3">This fixed prefix value is used for historical reasons, and indicates that the referenced data is CBOR encoded. If using a CID to reference arbitrary binary data, use the fixed 4-byte value <code>0x01551220</code> instead. No other CID prefixes or types are allowed.<a href="#appendix-A.1-3" class="pilcrow">¶</a></p>
+<p id="appendix-A.1-4">When representing a CID link in CBOR, the binary CID value has an additional null byte (0x00) prepended, then the 37 bytes are stored as a byte string using the IANA-registered CBOR Tag 42.<a href="#appendix-A.1-4" class="pilcrow">¶</a></p>
+<p id="appendix-A.1-5">When representing a CID value as a string, the 36-byte binary CID value is encoded using <span>[<a href="#RFC4648" class="cite xref">RFC4648</a>]</span> unpadded lower-case base32, and then the ASCII character 'b' (lower-case B) is prefixed. This results in a 59-character lower-case ASCII string.<a href="#appendix-A.1-5" class="pilcrow">¶</a></p>
+<p id="appendix-A.1-6">When referencing a CID link in JSON, first compute the string representation as described above. The link is then represented as a JSON object with a single key (<code>$link</code>) and the value being the string value. For example:<a href="#appendix-A.1-6" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="appendix-A.1-7">
+<pre>
+{
+  "$link": "bafyreidfayvfuwqa7qlnopdjiqrxzs6blmoeu4rujcjtnci5beludirz2a"
+}
+</pre><a href="#appendix-A.1-7" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+<div id="cbor-encoding">
+<section id="appendix-A.2">
+        <h3 id="name-cbor-encoding">
+<a href="#appendix-A.2" class="section-number selfRef">A.2. </a><a href="#name-cbor-encoding" class="section-name selfRef">CBOR Encoding</a>
+        </h3>
+<p id="appendix-A.2-1">Repository content requires consistent binary representation across all implementations to ensure identical content hashes and verifiable integrity. All records, MST nodes, and commits must be encoded using Deterministically Encoded CBOR as specified in <span><a href="https://rfc-editor.org/rfc/rfc8949#section-4.2" class="relref">Section 4.2</a> of [<a href="#RFC8949" class="cite xref">RFC8949</a>]</span>.<a href="#appendix-A.2-1" class="pilcrow">¶</a></p>
+<p id="appendix-A.2-2">The encoding rules that apply in this document are:<a href="#appendix-A.2-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="appendix-A.2-3.1">
+            <p id="appendix-A.2-3.1.1">Integers are encoded in their shortest form<a href="#appendix-A.2-3.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="appendix-A.2-3.2">
+            <p id="appendix-A.2-3.2.1">Length metadata must be encoded in shortest form<a href="#appendix-A.2-3.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="appendix-A.2-3.3">
+            <p id="appendix-A.2-3.3.1">All arrays, maps, and strings are encoded with explicit lengths; CBOR's indefinite-length encoding is not used<a href="#appendix-A.2-3.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="appendix-A.2-3.4">
+            <p id="appendix-A.2-3.4.1">Floating-point values are not used; this includes NaN and infinity values<a href="#appendix-A.2-3.4.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="appendix-A.2-3.5">
+            <p id="appendix-A.2-3.5.1">Map keys MUST be sorted using length-first bytewise lexicographic order of the encoded key<a href="#appendix-A.2-3.5.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="appendix-A.2-3.6">
+            <p id="appendix-A.2-3.6.1">Maps MUST NOT contain duplicate keys<a href="#appendix-A.2-3.6.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="appendix-A.2-3.7">
+            <p id="appendix-A.2-3.7.1">Map keys MUST have string type<a href="#appendix-A.2-3.7.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="appendix-A.2-3.8">
+            <p id="appendix-A.2-3.8.1">Tag 42 (for CID links) is the only extension type supported<a href="#appendix-A.2-3.8.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="appendix-A.2-4">Because all map keys are strings encoded with a length prefix, the map sorting order described here is the same as that described by both <span>[<a href="#RFC8949" class="cite xref">RFC8949</a>]</span> Section 4.2.1 and Section 4.2.3, as well as the earlier <span>[<a href="#RFC7049" class="cite xref">RFC7049</a>]</span> Section 3.9.<a href="#appendix-A.2-4" class="pilcrow">¶</a></p>
+<p id="appendix-A.2-5">The encoding rules described here are compatible with similar deterministic-CBOR profiles such as <span>[<a href="#DRISL" class="cite xref">DRISL</a>]</span>.<a href="#appendix-A.2-5" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="json-encoding">
+<section id="appendix-A.3">
+        <h3 id="name-json-encoding">
+<a href="#appendix-A.3" class="section-number selfRef">A.3. </a><a href="#name-json-encoding" class="section-name selfRef">JSON Encoding</a>
+        </h3>
+<p id="appendix-A.3-1">The JSON representation of records or other repository data objects does not need to have a deterministic binary encoding.<a href="#appendix-A.3-1" class="pilcrow">¶</a></p>
+<p id="appendix-A.3-2">Byte strings are represented in JSON using a special object type. The binary data is first string encoded in base64, as described in <span>[<a href="#RFC4648" class="cite xref">RFC4648</a>]</span> Section 4. This variant is not URL-safe, and <code>=</code> padding is optional. The special JSON object has a single string key <code>$bytes</code>, and the value is the base64-encoded data. For example:<a href="#appendix-A.3-2" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="appendix-A.3-3">
+<pre>
+{
+  "$bytes": "nFERjvLLiw9qm45JrqH9QTzyC2Lu1Xb4ne6+sBrCzI0"
+}
+</pre><a href="#appendix-A.3-3" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A.3-4">Content hash links (CID links) are represented as special objects as described in <a href="#cid-link" class="auto internal xref">Appendix A.1</a>.<a href="#appendix-A.3-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="crypto">
+<section id="appendix-B">
+      <h2 id="name-cryptography">
+<a href="#appendix-B" class="section-number selfRef">Appendix B. </a><a href="#name-cryptography" class="section-name selfRef">Cryptography</a>
+      </h2>
+<p id="appendix-B-1">Implementations must support all of the following elliptic curves and signature algorithms:<a href="#appendix-B-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="appendix-B-2.1">
+          <p id="appendix-B-2.1.1">NIST P-256 (also known as secp256r1 or p256) <span>[<a href="#SEC2" class="cite xref">SEC2</a>]</span><a href="#appendix-B-2.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-B-2.2">
+          <p id="appendix-B-2.2.1">secp256k1 (also known as k256) <span>[<a href="#SEC2" class="cite xref">SEC2</a>]</span><a href="#appendix-B-2.2.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<div id="crypto-malleable">
+<section id="appendix-B.1">
+        <h3 id="name-signature-malleability">
+<a href="#appendix-B.1" class="section-number selfRef">B.1. </a><a href="#name-signature-malleability" class="section-name selfRef">Signature Malleability</a>
+        </h3>
+<p id="appendix-B.1-1">ECDSA signatures exhibit malleability, allowing transformation into distinct but equally valid signatures without access to the private key or original data. While the security impact is limited, signature malleability could enable broadcast of multiple valid versions of the same repository commit with different hashes, potentially causing consumer confusion.<a href="#appendix-B.1-1" class="pilcrow">¶</a></p>
+<p id="appendix-B.1-2">To prevent such scenarios, ECDSA signatures are required to be canonicalized in low-S form. Specifically, the <code>s</code> component of the signature must satisfy <code>s ≤ n/2</code>, where <code>n</code> is the order of the curve's base point. Receivers MUST reject signatures which are not in this canonicalized form.<a href="#appendix-B.1-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="crypto-sig">
+<section id="appendix-B.2">
+        <h3 id="name-signature-generation">
+<a href="#appendix-B.2" class="section-number selfRef">B.2. </a><a href="#name-signature-generation" class="section-name selfRef">Signature Generation</a>
+        </h3>
+<p id="appendix-B.2-1">To compute a signature over CBOR-encoded bytes in the context of this protocol:<a href="#appendix-B.2-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="appendix-B.2-2">
+<li id="appendix-B.2-2.1">
+            <p id="appendix-B.2-2.1.1">Compute the SHA-256 hash of the encoded bytes. Do not encode the resulting hash bytes.<a href="#appendix-B.2-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="appendix-B.2-2.2">
+            <p id="appendix-B.2-2.2.1">Sign the hash bytes using the current signing key associated with the account<a href="#appendix-B.2-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="appendix-B.2-2.3">
+            <p id="appendix-B.2-2.3.1">Format the signature bytes as a concatenation of the 32-byte <code>r</code> and 32-byte <code>s</code> values<a href="#appendix-B.2-2.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+<p id="appendix-B.2-3">Note that SHA-256 hashing is a standard part of most ECDSA implementations. Do not double-hash.<a href="#appendix-B.2-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="tid">
+<section id="appendix-C">
+      <h2 id="name-timestamp-identifier-tid">
+<a href="#appendix-C" class="section-number selfRef">Appendix C. </a><a href="#name-timestamp-identifier-tid" class="section-name selfRef">Timestamp Identifier (TID)</a>
+      </h2>
+<p id="appendix-C-1">Timestamp Identifiers (TIDs) are compact string encodings of 64-bit integers, that can be used as logical clocks or locally-unique sorted identifiers. They are not expected to be globally unique. They can be compared and sorted as strings.<a href="#appendix-C-1" class="pilcrow">¶</a></p>
+<p id="appendix-C-2">They have the following structure:<a href="#appendix-C-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="appendix-C-3.1">
+          <p id="appendix-C-3.1.1">64-bit integer with big-endian byte ordering<a href="#appendix-C-3.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-C-3.2">
+          <p id="appendix-C-3.2.1">Top bit is always zero, so that the full value range fits in a positive signed 64-bit integer.<a href="#appendix-C-3.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-C-3.3">
+          <p id="appendix-C-3.3.1">Base32-sortable encoding using characters <code>234567abcdefghijklmnopqrstuvwxyz</code> (the first character is limited to <code>234567ab</code>)<a href="#appendix-C-3.3.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-C-3.4">
+          <p id="appendix-C-3.4.1">Fixed 13-character length with no padding (integer zero encodes as <code>2222222222222</code>)<a href="#appendix-C-3.4.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="appendix-C-4">The layout of the 64-bit integer is:<a href="#appendix-C-4" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="appendix-C-5.1">
+          <p id="appendix-C-5.1.1">The top bit is always 0<a href="#appendix-C-5.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-C-5.2">
+          <p id="appendix-C-5.2.1">The next 53 bits represent microseconds since the UNIX epoch. 53 bits was chosen because it is the maximum safe integer precision in a 64-bit floating point number, as used by JavaScript.<a href="#appendix-C-5.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="appendix-C-5.3">
+          <p id="appendix-C-5.3.1">The final 10 bits are an arbitrary "clock identifier."<a href="#appendix-C-5.3.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="appendix-C-6">When generating a sequence of TIDs in the same context (e.g., for an individual account), care should be taken to ensure that the TID value always increments. If the system clock rolls backwards, or multiple TIDs are generated in the same microsecond, the microsecond component should be incremented past the previously generated value.<a href="#appendix-C-6" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="nsid">
+<section id="appendix-D">
+      <h2 id="name-namespaced-identifier-nsid-">
+<a href="#appendix-D" class="section-number selfRef">Appendix D. </a><a href="#name-namespaced-identifier-nsid-" class="section-name selfRef">Namespaced Identifier (NSID) Syntax</a>
+      </h2>
+<p id="appendix-D-1">Collections are identified by a Namespaced Identifier (NSID): an ASCII string in reverse domain-name order followed by an additional name segment. The portion preceding the final segment is the <strong>domain authority</strong>; the final segment is the <strong>name</strong>.<a href="#appendix-D-1" class="pilcrow">¶</a></p>
+<p id="appendix-D-2">NSIDs MUST conform to the following syntax:<a href="#appendix-D-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="appendix-D-3.1">
+          <p id="appendix-D-3.1.1">Overall:<a href="#appendix-D-3.1.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="appendix-D-3.1.2.1">
+              <p id="appendix-D-3.1.2.1.1">MUST contain only ASCII characters<a href="#appendix-D-3.1.2.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.1.2.2">
+              <p id="appendix-D-3.1.2.2.1">MUST separate the domain authority and the name by an ASCII period (<code>.</code>)<a href="#appendix-D-3.1.2.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.1.2.3">
+              <p id="appendix-D-3.1.2.3.1">MUST contain at least three segments<a href="#appendix-D-3.1.2.3.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.1.2.4">
+              <p id="appendix-D-3.1.2.4.1">MUST be at most 317 characters in total length<a href="#appendix-D-3.1.2.4.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+</li>
+        <li class="normal" id="appendix-D-3.2">
+          <p id="appendix-D-3.2.1">Domain authority:<a href="#appendix-D-3.2.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="appendix-D-3.2.2.1">
+              <p id="appendix-D-3.2.2.1.1">Composed of segments separated by ASCII periods (<code>.</code>)<a href="#appendix-D-3.2.2.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.2.2.2">
+              <p id="appendix-D-3.2.2.2.1">At most 253 characters in total (including periods), and at least two segments<a href="#appendix-D-3.2.2.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.2.2.3">
+              <p id="appendix-D-3.2.2.3.1">Each segment MUST contain at least 1 and at most 63 characters<a href="#appendix-D-3.2.2.3.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.2.2.4">
+              <p id="appendix-D-3.2.2.4.1">The allowed characters are ASCII letters (<code>A-Z</code>, <code>a-z</code>), digits (<code>0-9</code>), and hyphens (<code>-</code>)<a href="#appendix-D-3.2.2.4.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.2.2.5">
+              <p id="appendix-D-3.2.2.5.1">Segments MUST NOT start or end with a hyphen<a href="#appendix-D-3.2.2.5.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.2.2.6">
+              <p id="appendix-D-3.2.2.6.1">The first segment (the top-level domain) MUST NOT start with a digit<a href="#appendix-D-3.2.2.6.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.2.2.7">
+              <p id="appendix-D-3.2.2.7.1">The domain authority is not case-sensitive and SHOULD be normalized to lowercase<a href="#appendix-D-3.2.2.7.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+</li>
+        <li class="normal" id="appendix-D-3.3">
+          <p id="appendix-D-3.3.1">Name:<a href="#appendix-D-3.3.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="appendix-D-3.3.2.1">
+              <p id="appendix-D-3.3.2.1.1">MUST contain at least 1 and at most 63 characters<a href="#appendix-D-3.3.2.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.3.2.2">
+              <p id="appendix-D-3.3.2.2.1">The allowed characters are ASCII letters and digits only (<code>A-Z</code>, <code>a-z</code>, <code>0-9</code>)<a href="#appendix-D-3.3.2.2.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.3.2.3">
+              <p id="appendix-D-3.3.2.3.1">Hyphens are not allowed<a href="#appendix-D-3.3.2.3.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.3.2.4">
+              <p id="appendix-D-3.3.2.4.1">MUST NOT start with a digit<a href="#appendix-D-3.3.2.4.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="appendix-D-3.3.2.5">
+              <p id="appendix-D-3.3.2.5.1">Case-sensitive; implementations MUST NOT normalize case<a href="#appendix-D-3.3.2.5.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+</li>
+      </ul>
+</section>
+</div>
+<div id="acknowledgments">
+<section id="appendix-E">
+      <h2 id="name-acknowledgments">
+<a href="#name-acknowledgments" class="section-name selfRef">Acknowledgments</a>
+      </h2>
+<p id="appendix-E-1">TODO acknowledge.<a href="#appendix-E-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="authors-addresses">
+<section id="appendix-F">
+      <h2 id="name-authors-addresses">
+<a href="#name-authors-addresses" class="section-name selfRef">Authors' Addresses</a>
+      </h2>
+<address class="vcard">
+        <div dir="auto" class="left"><span class="fn nameRole">Daniel Holmgren</span></div>
+<div dir="auto" class="left"><span class="org">Bluesky Social</span></div>
+<div class="email">
+<span>Email:</span>
+<a href="mailto:daniel@blueskyweb.xyz" class="email">daniel@blueskyweb.xyz</a>
+</div>
+</address>
+<address class="vcard">
+        <div dir="auto" class="left"><span class="fn nameRole">Bryan Newbold</span></div>
+<div dir="auto" class="left"><span class="org">Bluesky Social</span></div>
+<div class="email">
+<span>Email:</span>
+<a href="mailto:bryan@blueskyweb.xyz" class="email">bryan@blueskyweb.xyz</a>
+</div>
+</address>
+</section>
+</div>
+<script>const toc = document.getElementById("toc");
+toc.querySelector("h2").addEventListener("click", e => {
+  toc.classList.toggle("active");
+});
+toc.querySelector("nav").addEventListener("click", e => {
+  toc.classList.remove("active");
+});
+</script>
+</body>
+</html>
